@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, getDocs, query, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { 
   ClipboardCheck, Calendar, Users, FolderArchive, Lock, Unlock, 
   Settings, Key, Plus, Trash2, ArrowUp, ArrowDown, Camera, Check, 
@@ -28,10 +28,6 @@ try {
 } catch (e) {
   console.error("Firebase Init Error:", e);
 }
-
-const ATTENDANCE_KEY = 'wss_attendance_synced_v16';
-const QUESTIONS_STORAGE_KEY = 'wss_custom_questions_v16';
-const CATEGORIES_STORAGE_KEY = 'wss_custom_categories_v16';
 
 // Daftar Kategori / Area Default per Form
 const DEFAULT_FORM_CATEGORIES = {
@@ -172,9 +168,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
 
-  const [currentMasterPin, setCurrentMasterPin] = useState(() => {
-    return localStorage.getItem('wss_admin_pin') || '1234';
-  });
+  const [currentMasterPin, setCurrentMasterPin] = useState('1234');
   const [showPinModal, setShowPinModal] = useState(false);
   const [adminPinInput, setAdminPinInput] = useState('');
   const [showChangePinModal, setShowChangePinModal] = useState(false);
@@ -186,21 +180,8 @@ export default function App() {
   const [questionForm, setQuestionForm] = useState({ text: '', category: 'Lobi', requirePhoto: false, requireNoteOnNotOk: true });
   const [newCategoryInput, setNewCategoryInput] = useState('');
 
-  const [questions, setQuestions] = useState(() => {
-    const saved = localStorage.getItem(QUESTIONS_STORAGE_KEY);
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
-    }
-    return DEFAULT_SOP_QUESTIONS;
-  });
-
-  const [formCategories, setFormCategories] = useState(() => {
-    const saved = localStorage.getItem(CATEGORIES_STORAGE_KEY);
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
-    }
-    return DEFAULT_FORM_CATEGORIES;
-  });
+  const [questions, setQuestions] = useState(DEFAULT_SOP_QUESTIONS);
+  const [formCategories, setFormCategories] = useState(DEFAULT_FORM_CATEGORIES);
   
   const [headers, setHeaders] = useState({
     tanggal: new Date().toISOString().split('T')[0],
@@ -228,47 +209,67 @@ export default function App() {
     setTimeout(() => setToastMessage(''), 3000);
   };
 
-  // AMBIL DATA REALTIME DARI FIREBASE CLOUD FIRESTORE
-  const fetchCloudReports = async () => {
+  // REAL-TIME SYNC FIREBASE CLOUD FIRESTORE (SEMUA PERUBAHAN OTOMATIS TERHUBUNG)
+  useEffect(() => {
     if (!db) return;
     setIsSyncingCloud(true);
-    try {
-      const q = query(collection(db, "wss_sop_reports"));
-      const querySnapshot = await getDocs(q);
+
+    // 1. Sinkronisasi Real-Time Laporan Arsip
+    const unsubReports = onSnapshot(collection(db, "wss_sop_reports"), (snapshot) => {
       const cloudData = [];
-      querySnapshot.forEach((doc) => {
+      snapshot.forEach((doc) => {
         cloudData.push({ ...doc.data(), firestore_id: doc.id });
       });
       cloudData.sort((a, b) => (b.timestamp_raw || 0) - (a.timestamp_raw || 0));
       setHistoryReports(cloudData);
-    } catch (e) {
-      console.error("Gagal sinkronisasi cloud:", e);
-    } finally {
       setIsSyncingCloud(false);
+    }, (error) => {
+      console.error("Error listening reports:", error);
+      setIsSyncingCloud(false);
+    });
+
+    // 2. Sinkronisasi Real-Time Konfigurasi Master (Pertanyaan & Kehadiran Hari Ini)
+    const unsubMaster = onSnapshot(doc(db, "wss_system_master", "config"), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.questions) setQuestions(data.questions);
+        if (data.formCategories) setFormCategories(data.formCategories);
+        if (data.adminPin) setCurrentMasterPin(data.adminPin);
+        if (data.attendance) setAttendance(data.attendance);
+      } else {
+        // Inisialisasi awal dokumen master di cloud jika belum ada
+        setDoc(doc(db, "wss_system_master", "config"), {
+          questions: DEFAULT_SOP_QUESTIONS,
+          formCategories: DEFAULT_FORM_CATEGORIES,
+          adminPin: '1234',
+          attendance: { hadirCount: 0, sakitList: [''], izinList: [''], alphaList: [''], isSubmitted: false }
+        }).catch(err => console.error("Init master error:", err));
+      }
+    }, (error) => {
+      console.error("Error listening master config:", error);
+    });
+
+    return () => {
+      unsubReports();
+      unsubMaster();
+    };
+  }, []);
+
+  // Fungsi helper untuk menyimpan master config ke Cloud Firestore
+  const updateCloudMasterConfig = async (newMasterData) => {
+    if (!db) return;
+    try {
+      await setDoc(doc(db, "wss_system_master", "config"), {
+        questions,
+        formCategories,
+        adminPin: currentMasterPin,
+        attendance,
+        ...newMasterData
+      }, { merge: true });
+    } catch (e) {
+      console.error("Gagal memperbarui cloud master:", e);
     }
   };
-
-  useEffect(() => {
-    fetchCloudReports();
-
-    const savedPin = localStorage.getItem('wss_admin_pin');
-    if (savedPin) setCurrentMasterPin(savedPin);
-
-    const savedAttendance = localStorage.getItem(ATTENDANCE_KEY);
-    if (savedAttendance) {
-      try { setAttendance(JSON.parse(savedAttendance)); } catch (e) {}
-    }
-
-    const savedQuestions = localStorage.getItem(QUESTIONS_STORAGE_KEY);
-    if (savedQuestions) {
-      try { setQuestions(JSON.parse(savedQuestions)); } catch (e) {}
-    }
-
-    const savedCats = localStorage.getItem(CATEGORIES_STORAGE_KEY);
-    if (savedCats) {
-      try { setFormCategories(JSON.parse(savedCats)); } catch (e) {}
-    }
-  }, []);
 
   const handleVerifyAdminPin = () => {
     if (adminPinInput === currentMasterPin) {
@@ -281,7 +282,7 @@ export default function App() {
     }
   };
 
-  const handleChangeAdminPin = () => {
+  const handleChangeAdminPin = async () => {
     if (changePinForm.oldPin !== currentMasterPin) {
       alert("PIN Lama tidak sesuai!");
       return;
@@ -296,13 +297,13 @@ export default function App() {
     }
 
     setCurrentMasterPin(changePinForm.newPin);
-    localStorage.setItem('wss_admin_pin', changePinForm.newPin);
+    await updateCloudMasterConfig({ adminPin: changePinForm.newPin });
     setShowChangePinModal(false);
     setChangePinForm({ oldPin: '', newPin: '', confirmPin: '' });
-    showToast("PIN Admin berhasil diperbarui!");
+    showToast("PIN Admin berhasil diperbarui dan disinkronkan ke seluruh perangkat!");
   };
 
-  const handleAddNewCategory = () => {
+  const handleAddNewCategory = async () => {
     const catName = newCategoryInput.trim();
     if (!catName) {
       alert("Nama area/kategori tidak boleh kosong!");
@@ -319,19 +320,20 @@ export default function App() {
       [editingCategoryTab]: [...currentCats, catName]
     };
     setFormCategories(updatedCats);
-    localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(updatedCats));
+    await updateCloudMasterConfig({ formCategories: updatedCats });
     setNewCategoryInput('');
     setQuestionForm(prev => ({ ...prev, category: catName }));
-    showToast(`Area "${catName}" berhasil ditambahkan!`);
+    showToast(`Area "${catName}" berhasil ditambahkan ke Cloud!`);
   };
 
-  const handleSaveQuestionItem = () => {
+  const handleSaveQuestionItem = async () => {
     if (!questionForm.text.trim()) {
       alert("Teks pertanyaan tidak boleh kosong!");
       return;
     }
 
     const currentCatList = [...(questions[editingCategoryTab] || [])];
+    let updatedAll;
 
     if (editingQuestionId) {
       const updatedList = currentCatList.map(q => {
@@ -346,10 +348,9 @@ export default function App() {
         }
         return q;
       });
-      const updatedAll = { ...questions, [editingCategoryTab]: updatedList };
+      updatedAll = { ...questions, [editingCategoryTab]: updatedList };
       setQuestions(updatedAll);
-      localStorage.setItem(QUESTIONS_STORAGE_KEY, JSON.stringify(updatedAll));
-      showToast("Pertanyaan berhasil diperbarui!");
+      showToast("Pertanyaan berhasil diperbarui secara live!");
     } else {
       const newId = `q_${Date.now()}`;
       const newItem = {
@@ -361,12 +362,12 @@ export default function App() {
         isActive: true
       };
       const updatedList = [...currentCatList, newItem];
-      const updatedAll = { ...questions, [editingCategoryTab]: updatedList };
+      updatedAll = { ...questions, [editingCategoryTab]: updatedList };
       setQuestions(updatedAll);
-      localStorage.setItem(QUESTIONS_STORAGE_KEY, JSON.stringify(updatedAll));
-      showToast("Pertanyaan baru berhasil ditambahkan!");
+      showToast("Pertanyaan baru berhasil ditambahkan secara live!");
     }
 
+    await updateCloudMasterConfig({ questions: updatedAll });
     const availableCats = formCategories[editingCategoryTab] || ['General'];
     setQuestionForm({ text: '', category: availableCats[0], requirePhoto: false, requireNoteOnNotOk: true });
     setEditingQuestionId(null);
@@ -382,16 +383,16 @@ export default function App() {
     });
   };
 
-  const handleDeleteQuestion = (qId) => {
-    if (!window.confirm("Hapus permanen pertanyaan SOP ini?")) return;
+  const handleDeleteQuestion = async (qId) => {
+    if (!window.confirm("Hapus permanen pertanyaan SOP ini dari sistem?")) return;
     const updatedList = (questions[editingCategoryTab] || []).filter(q => q.id !== qId);
     const updatedAll = { ...questions, [editingCategoryTab]: updatedList };
     setQuestions(updatedAll);
-    localStorage.setItem(QUESTIONS_STORAGE_KEY, JSON.stringify(updatedAll));
-    showToast("Pertanyaan berhasil dihapus.");
+    await updateCloudMasterConfig({ questions: updatedAll });
+    showToast("Pertanyaan berhasil dihapus dari Cloud.");
   };
 
-  const handleMoveQuestion = (index, direction) => {
+  const handleMoveQuestion = async (index, direction) => {
     const list = [...(questions[editingCategoryTab] || [])];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= list.length) return;
@@ -402,7 +403,7 @@ export default function App() {
 
     const updatedAll = { ...questions, [editingCategoryTab]: list };
     setQuestions(updatedAll);
-    localStorage.setItem(QUESTIONS_STORAGE_KEY, JSON.stringify(updatedAll));
+    await updateCloudMasterConfig({ questions: updatedAll });
   };
 
   const handleAddNameRow = (type) => {
@@ -429,18 +430,18 @@ export default function App() {
     }));
   };
 
-  const handleSaveAttendance = () => {
+  const handleSaveAttendance = async () => {
     const updated = { ...attendance, isSubmitted: true };
     setAttendance(updated);
-    localStorage.setItem(ATTENDANCE_KEY, JSON.stringify(updated));
-    showToast("Daftar Kehadiran Berhasil Disimpan!");
+    await updateCloudMasterConfig({ attendance: updated });
+    showToast("Daftar Kehadiran Berhasil Disimpan ke Cloud!");
   };
 
-  const handleResetAttendance = () => {
+  const handleResetAttendance = async () => {
     if (window.confirm("Buka kembali form daftar kehadiran untuk diedit?")) {
       const updated = { ...attendance, isSubmitted: false };
       setAttendance(updated);
-      localStorage.setItem(ATTENDANCE_KEY, JSON.stringify(updated));
+      await updateCloudMasterConfig({ attendance: updated });
       showToast("Daftar kehadiran dapat diedit kembali.");
     }
   };
@@ -523,7 +524,7 @@ export default function App() {
     reader.readAsDataURL(file);
   };
 
-  // SIMPAN KE FIREBASE CLOUD FIRESTORE AGAR TERSINKRON KE SEMUA HP
+  // SIMPAN KE FIREBASE CLOUD FIRESTORE (OTOMATIS MUNCUL DI SEMUA PERANGKAT)
   const handleSubmitReport = async (formId, title, docNo) => {
     const allQuestions = questions[formId] || [];
     const currentQuestions = allQuestions.filter(q => q.isActive !== false);
@@ -574,9 +575,8 @@ export default function App() {
       if (db) {
         await addDoc(collection(db, "wss_sop_reports"), newReport);
       }
-      setHistoryReports(prev => [newReport, ...prev]);
       setChecklistData(prev => ({ ...prev, [formId]: {} }));
-      showToast("Laporan Berhasil Disimpan ke Cloud Firebase & Bisa Dilihat di HP Mana Saja!");
+      showToast("Laporan Berhasil Disimpan ke Cloud & Otomatis Muncul di Semua Perangkat!");
       setActiveTab('home');
     } catch (err) {
       console.error("Gagal simpan cloud:", err);
@@ -586,15 +586,22 @@ export default function App() {
     }
   };
 
-  const handleDeleteHistory = (reportId) => {
+  const handleDeleteHistory = async (firestoreId) => {
     if (!isAdminLoggedIn) {
       alert("Hanya Admin yang berhak menghapus riwayat laporan!");
       return;
     }
-    if (window.confirm("Hapus permanen laporan dan foto bukti ini?")) {
-      const updated = historyReports.filter(r => r.id !== reportId);
-      setHistoryReports(updated);
-      showToast("Laporan berhasil dihapus.");
+    if (window.confirm("Hapus permanen laporan dan foto bukti ini dari cloud?")) {
+      try {
+        if (db && firestoreId) {
+          const { deleteDoc, doc: firestoreDoc } = await import('firebase/firestore');
+          await deleteDoc(firestoreDoc(db, "wss_sop_reports", firestoreId));
+        }
+        showToast("Laporan berhasil dihapus dari cloud.");
+      } catch (e) {
+        console.error("Gagal hapus:", e);
+        alert("Gagal menghapus laporan.");
+      }
     }
   };
 
@@ -732,11 +739,11 @@ export default function App() {
               <div style={{ position: 'absolute', right: '-15px', bottom: '-40px', fontSize: '140px', opacity: '0.06', pointerEvents: 'none' }}>🌶️</div>
               <div style={{ maxWidth: '720px', position: 'relative', zIndex: 10 }}>
                 <span style={{ fontSize: '11px', fontWeight: 900, backgroundColor: '#fef08a', color: '#7f1d1d', padding: '5px 12px', borderRadius: '999px', textTransform: 'uppercase', letterSpacing: '1px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  <Cloud size={14} /> Terhubung Cloud Firebase Sinkron 24/7
+                  <Cloud size={14} /> Real-Time Live Sync Multi-Device 24/7
                 </span>
                 <h2 style={{ margin: '14px 0 10px 0', fontSize: '26px', fontWeight: 900, color: '#fff', letterSpacing: '-0.5px' }}>Sistem Checklist Digital Warung Sambal Samuda</h2>
                 <p style={{ margin: 0, fontSize: '13px', color: '#fca5a5', lineHeight: '1.6', fontWeight: '500' }}>
-                  Data dan laporan tersinkronisasi otomatis lintas perangkat. Bisa dibuka dan dipantau dari HP manager maupun staf mana saja secara real-time.
+                  Setiap perubahan (absen, checklist, foto, pengaturan admin) otomatis terhubung secara real-time ke semua perangkat yang memiliki link.
                 </p>
               </div>
             </div>
@@ -769,7 +776,7 @@ export default function App() {
                 </div>
                 <div>
                   <span style={{ fontSize: '11px', color: '#b91c1c', fontWeight: '800', display: 'block', textTransform: 'uppercase' }}>Status Cloud</span>
-                  <strong style={{ fontSize: '14px', color: isSyncingCloud ? '#d97706' : '#059669', fontWeight: '900' }}>{isSyncingCloud ? 'Sinkronisasi...' : 'Online & Terhubung'}</strong>
+                  <strong style={{ fontSize: '14px', color: isSyncingCloud ? '#d97706' : '#059669', fontWeight: '900' }}>{isSyncingCloud ? 'Sinkronisasi...' : 'Live Connected'}</strong>
                 </div>
               </div>
             </div>
@@ -802,7 +809,7 @@ export default function App() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <span style={{ fontSize: '20px' }}>🎉</span>
-                      <span style={{ fontSize: '14px', fontWeight: 900, color: '#065f46' }}>Absensi Hari Ini Telah Dikunci & Tersimpan Aman</span>
+                      <span style={{ fontSize: '14px', fontWeight: 900, color: '#065f46' }}>Absensi Hari Ini Telah Dikunci & Tersimpan Aman di Cloud</span>
                     </div>
                     <button
                       onClick={handleResetAttendance}
@@ -1073,12 +1080,6 @@ export default function App() {
                 </h3>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button
-                    onClick={fetchCloudReports}
-                    style={{ backgroundColor: '#fff5f5', border: '1px solid #feb2b2', color: '#991b1b', fontSize: '12px', fontWeight: 900, padding: '8px 12px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                  >
-                    <RefreshCw size={12} /> Sinkron
-                  </button>
-                  <button
                     onClick={() => setActiveTab('history')}
                     style={{ backgroundColor: '#fff5f5', border: '1px solid #feb2b2', color: '#991b1b', fontSize: '12px', fontWeight: 900, padding: '8px 16px', borderRadius: '12px', cursor: 'pointer' }}
                   >
@@ -1297,14 +1298,8 @@ export default function App() {
             <div style={{ backgroundColor: '#fff', borderRadius: '24px', padding: '28px', border: '1px solid #fed7d7', boxShadow: '0 10px 30px rgba(153,27,27,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 900, color: '#991b1b' }}>Arsip Laporan & Foto Bukti Cloud</h2>
-                <p style={{ margin: '6px 0 0 0', fontSize: '13px', color: '#b91c1c' }}>Data disinkronisasi dari Cloud Database dan dapat dilihat di HP mana saja.</p>
+                <p style={{ margin: '6px 0 0 0', fontSize: '13px', color: '#b91c1c' }}>Data disinkronisasi live dari Cloud Database ke seluruh perangkat.</p>
               </div>
-              <button
-                onClick={fetchCloudReports}
-                style={{ backgroundColor: '#991b1b', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '12px', fontSize: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                <RefreshCw size={14} /> Sinkronisasi Cloud
-              </button>
             </div>
 
             {historyReports.length === 0 ? (
@@ -1314,7 +1309,7 @@ export default function App() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 {historyReports.map(rep => (
-                  <div key={rep.id} style={{ backgroundColor: '#fff', borderRadius: '20px', padding: '20px', border: '1px solid #fed7d7', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
+                  <div key={rep.id || rep.firestore_id} style={{ backgroundColor: '#fff', borderRadius: '20px', padding: '20px', border: '1px solid #fed7d7', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
                     <div>
                       <div style={{ display: 'flex', gap: '8px', marginBottom: '6px' }}>
                         <span style={{ fontSize: '10px', fontWeight: 900, backgroundColor: '#fee2e2', color: '#991b1b', padding: '3px 8px', borderRadius: '6px' }}>{rep.document_no}</span>
@@ -1333,7 +1328,7 @@ export default function App() {
                       </button>
                       {isAdminLoggedIn && (
                         <button
-                          onClick={() => handleDeleteHistory(rep.id)}
+                          onClick={() => handleDeleteHistory(rep.firestore_id)}
                           style={{ backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', padding: '9px 14px', borderRadius: '12px', fontSize: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                         >
                           <Trash2 size={14} /> Hapus
