@@ -538,8 +538,11 @@ export default function App() {
       <header className="bg-slate-900/90 backdrop-blur-xl border-b border-slate-800 sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-red-600 to-amber-500 flex items-center justify-center shadow-lg shadow-red-600/30">
-              <UtensilsCrossed size={20} className="text-white" />
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-red-600 to-amber-500 flex items-center justify-center shadow-lg shadow-red-600/30 overflow-hidden p-1.5">
+              <svg viewBox="0 0 512 512" className="w-full h-full fill-current text-white">
+                <path d="M256 32c125.8 0 228 102.2 228 228 0 42.4-11.4 82.2-31.2 116.4-13.8 24.2-34.4 44.8-58.6 58.6C338.2 456.6 298.4 468 256 468c-125.8 0-228-102.2-228-228S130.2 32 256 32zm0 48c-99.4 0-180 80.6-180 180 0 29.4 7.4 57 20.4 81.2 1.4 2.6 3.6 4.8 6.2 6.2 24.2 13 51.8 20.4 81.2 20.4 99.4 0 180-80.6 180-180S355.4 80 256 80z" fill="#ffffff" />
+                <path d="M256 120c75.1 0 136 60.9 136 136 0 21.3-5.2 41.4-14.4 59.2-4.2 8.2-13.8 11.4-22 7.2-8.2-4.2-11.4-13.8-7.2-22 7.4-14.6 11.6-31.4 11.6-44.4 0-53-43-96-96-96s-96 43-96 96 43 96 96 96c13 0 29.8-4.2 44.4-11.6 8.2-4.2 17.8-1 22 7.2 4.2 8.2 1 17.8-7.2 22C305.4 346.8 285.3 352 264 352c-75.1 0-136-60.9-136-136s60.9-136 136-136z" fill="#ffffff" />
+              </svg>
             </div>
             <div>
               <h1 className="text-sm sm:text-base font-black tracking-wide text-white m-0 leading-tight">WARUNG SAMBAL SAMUDA</h1>
@@ -1360,22 +1363,29 @@ export default function App() {
             <div>
               <h4 className="text-xs font-black uppercase text-slate-400 mb-2">Item Pemeriksaan:</h4>
               <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
-                {Object.entries(selectedReport.checklistData || {}).map(([qId, ans], idx) => (
-                  <div key={idx} className="bg-slate-800/70 p-3.5 rounded-2xl border border-slate-700 text-xs flex items-start justify-between gap-3">
-                    <div>
-                      <span className="font-bold text-white block mb-1">Item #{idx + 1}</span>
-                      <span className={`inline-block font-bold px-2.5 py-0.5 rounded-lg text-[10px] mb-1 ${ans.status === 'OK' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'}`}>
-                        Status: {ans.status}
-                      </span>
-                      {ans.note && <p className="text-slate-300 m-0 mt-1">Catatan: {ans.note}</p>}
+                {Object.entries(selectedReport.checklistData || {}).map(([qId, ans], idx) => {
+                  // Cari teks pertanyaan asli berdasarkan formType dan qId
+                  const formQuestions = questions[selectedReport.formType] || [];
+                  const foundQ = formQuestions.find(q => q.id === qId);
+                  const questionText = foundQ ? foundQ.text : `Item #${idx + 1}`;
+
+                  return (
+                    <div key={idx} className="bg-slate-800/70 p-3.5 rounded-2xl border border-slate-700 text-xs flex items-start justify-between gap-3">
+                      <div>
+                        <span className="font-bold text-white block mb-1">{idx + 1}. {questionText}</span>
+                        <span className={`inline-block font-bold px-2.5 py-0.5 rounded-lg text-[10px] mb-1 ${ans.status === 'OK' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'}`}>
+                          Status: {ans.status}
+                        </span>
+                        {ans.note && <p className="text-slate-300 m-0 mt-1">Catatan: {ans.note}</p>}
+                      </div>
+                      {ans.photo && (
+                        <a href={ans.photo} target="_blank" rel="noreferrer">
+                          <img src={ans.photo} alt="Bukti" className="w-14 h-14 object-cover rounded-xl border border-slate-700 shadow-sm" />
+                        </a>
+                      )}
                     </div>
-                    {ans.photo && (
-                      <a href={ans.photo} target="_blank" rel="noreferrer">
-                        <img src={ans.photo} alt="Bukti" className="w-14 h-14 object-cover rounded-xl border border-slate-700 shadow-sm" />
-                      </a>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
