@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, getDocs, doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { 
   ClipboardCheck, Calendar, Users, FolderArchive, Lock, Unlock, 
   Settings, Key, Plus, Trash2, ArrowUp, ArrowDown, Camera, Check, 
-  X, AlertTriangle, Building2, UtensilsCrossed, ChevronRight, RefreshCw, Cloud, Database 
+  X, AlertTriangle, Building2, UtensilsCrossed, ChevronRight, RefreshCw, Cloud, Database,
+  LayoutDashboard, ShieldCheck, CheckCircle2, FileText, PieChart, Sparkles, LogOut, Edit3, Layers
 } from 'lucide-react';
 
 // =========================================================================
@@ -165,19 +166,18 @@ const DEFAULT_SOP_QUESTIONS = {
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
 
   const [currentMasterPin, setCurrentMasterPin] = useState('1234');
   const [showPinModal, setShowPinModal] = useState(false);
   const [adminPinInput, setAdminPinInput] = useState('');
-  const [showChangePinModal, setShowChangePinModal] = useState(false);
-  const [changePinForm, setChangePinForm] = useState({ oldPin: '', newPin: '', confirmPin: '' });
   
-  const [showQuestionEditorModal, setShowQuestionEditorModal] = useState(false);
-  const [editingCategoryTab, setEditingCategoryTab] = useState('opening_lobi');
+  const [selectedEditorTab, setSelectedEditorTab] = useState('opening_lobi');
   const [editingQuestionId, setEditingQuestionId] = useState(null);
-  const [questionForm, setQuestionForm] = useState({ text: '', category: 'Lobi', requirePhoto: false, requireNoteOnNotOk: true });
+  const [newQText, setNewQText] = useState('');
+  const [newQCategory, setNewQCategory] = useState('Lobi');
+  const [newQRequirePhoto, setNewQRequirePhoto] = useState(false);
   const [newCategoryInput, setNewCategoryInput] = useState('');
 
   const [questions, setQuestions] = useState(DEFAULT_SOP_QUESTIONS);
@@ -190,7 +190,7 @@ export default function App() {
   });
 
   const [attendance, setAttendance] = useState({
-    hadirCount: 0,
+    hadirCount: '',
     sakitList: [''],
     izinList: [''],
     alphaList: [''],
@@ -209,16 +209,14 @@ export default function App() {
     setTimeout(() => setToastMessage(''), 3000);
   };
 
-  // REAL-TIME SYNC FIREBASE CLOUD FIRESTORE (SEMUA PERUBAHAN OTOMATIS TERHUBUNG)
   useEffect(() => {
     if (!db) return;
     setIsSyncingCloud(true);
 
-    // 1. Sinkronisasi Real-Time Laporan Arsip
     const unsubReports = onSnapshot(collection(db, "wss_sop_reports"), (snapshot) => {
       const cloudData = [];
-      snapshot.forEach((doc) => {
-        cloudData.push({ ...doc.data(), firestore_id: doc.id });
+      snapshot.forEach((docSnap) => {
+        cloudData.push({ ...docSnap.data(), firestore_id: docSnap.id });
       });
       cloudData.sort((a, b) => (b.timestamp_raw || 0) - (a.timestamp_raw || 0));
       setHistoryReports(cloudData);
@@ -228,21 +226,17 @@ export default function App() {
       setIsSyncingCloud(false);
     });
 
-    // 2. Sinkronisasi Real-Time Konfigurasi Master (Pertanyaan & Kehadiran Hari Ini)
     const unsubMaster = onSnapshot(doc(db, "wss_system_master", "config"), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data.questions) setQuestions(data.questions);
         if (data.formCategories) setFormCategories(data.formCategories);
         if (data.adminPin) setCurrentMasterPin(data.adminPin);
-        if (data.attendance) setAttendance(data.attendance);
       } else {
-        // Inisialisasi awal dokumen master di cloud jika belum ada
         setDoc(doc(db, "wss_system_master", "config"), {
           questions: DEFAULT_SOP_QUESTIONS,
           formCategories: DEFAULT_FORM_CATEGORIES,
-          adminPin: '1234',
-          attendance: { hadirCount: 0, sakitList: [''], izinList: [''], alphaList: [''], isSubmitted: false }
+          adminPin: '1234'
         }).catch(err => console.error("Init master error:", err));
       }
     }, (error) => {
@@ -255,19 +249,16 @@ export default function App() {
     };
   }, []);
 
-  // Fungsi helper untuk menyimpan master config ke Cloud Firestore
-  const updateCloudMasterConfig = async (newMasterData) => {
+  const updateCloudMasterConfig = async (updatedQuestions, updatedCategories) => {
     if (!db) return;
     try {
       await setDoc(doc(db, "wss_system_master", "config"), {
-        questions,
-        formCategories,
-        adminPin: currentMasterPin,
-        attendance,
-        ...newMasterData
+        questions: updatedQuestions || questions,
+        formCategories: updatedCategories || formCategories,
+        adminPin: currentMasterPin
       }, { merge: true });
     } catch (e) {
-      console.error("Gagal memperbarui cloud master:", e);
+      console.error("Gagal update cloud master:", e);
     }
   };
 
@@ -282,834 +273,515 @@ export default function App() {
     }
   };
 
-  const handleChangeAdminPin = async () => {
-    if (changePinForm.oldPin !== currentMasterPin) {
-      alert("PIN Lama tidak sesuai!");
-      return;
-    }
-    if (!changePinForm.newPin || changePinForm.newPin.length < 4) {
-      alert("PIN Baru minimal 4 karakter!");
-      return;
-    }
-    if (changePinForm.newPin !== changePinForm.confirmPin) {
-      alert("Konfirmasi PIN Baru tidak cocok!");
-      return;
-    }
+  const handleSaveQuestion = (e) => {
+    e.preventDefault();
+    if (!newQText.trim()) return;
 
-    setCurrentMasterPin(changePinForm.newPin);
-    await updateCloudMasterConfig({ adminPin: changePinForm.newPin });
-    setShowChangePinModal(false);
-    setChangePinForm({ oldPin: '', newPin: '', confirmPin: '' });
-    showToast("PIN Admin berhasil diperbarui dan disinkronkan ke seluruh perangkat!");
-  };
-
-  const handleAddNewCategory = async () => {
-    const catName = newCategoryInput.trim();
-    if (!catName) {
-      alert("Nama area/kategori tidak boleh kosong!");
-      return;
-    }
-    const currentCats = formCategories[editingCategoryTab] || [];
-    if (currentCats.includes(catName)) {
-      alert("Kategori tersebut sudah ada dalam daftar!");
-      return;
-    }
-
-    const updatedCats = {
-      ...formCategories,
-      [editingCategoryTab]: [...currentCats, catName]
-    };
-    setFormCategories(updatedCats);
-    await updateCloudMasterConfig({ formCategories: updatedCats });
-    setNewCategoryInput('');
-    setQuestionForm(prev => ({ ...prev, category: catName }));
-    showToast(`Area "${catName}" berhasil ditambahkan ke Cloud!`);
-  };
-
-  const handleSaveQuestionItem = async () => {
-    if (!questionForm.text.trim()) {
-      alert("Teks pertanyaan tidak boleh kosong!");
-      return;
-    }
-
-    const currentCatList = [...(questions[editingCategoryTab] || [])];
-    let updatedAll;
-
+    const currentList = [...(questions[selectedEditorTab] || [])];
     if (editingQuestionId) {
-      const updatedList = currentCatList.map(q => {
-        if (q.id === editingQuestionId) {
-          return {
-            ...q,
-            text: questionForm.text,
-            category: questionForm.category,
-            requirePhoto: questionForm.requirePhoto,
-            requireNoteOnNotOk: questionForm.requireNoteOnNotOk
-          };
-        }
-        return q;
-      });
-      updatedAll = { ...questions, [editingCategoryTab]: updatedList };
-      setQuestions(updatedAll);
-      showToast("Pertanyaan berhasil diperbarui secara live!");
+      const idx = currentList.findIndex(q => q.id === editingQuestionId);
+      if (idx !== -1) {
+        currentList[idx] = {
+          ...currentList[idx],
+          text: newQText,
+          category: newQCategory,
+          requirePhoto: newQRequirePhoto
+        };
+      }
     } else {
       const newId = `q_${Date.now()}`;
-      const newItem = {
+      currentList.push({
         id: newId,
-        text: questionForm.text,
-        category: questionForm.category,
-        requirePhoto: questionForm.requirePhoto,
-        requireNoteOnNotOk: questionForm.requireNoteOnNotOk,
+        text: newQText,
+        category: newQCategory,
+        requirePhoto: newQRequirePhoto,
+        requireNoteOnNotOk: true,
         isActive: true
-      };
-      const updatedList = [...currentCatList, newItem];
-      updatedAll = { ...questions, [editingCategoryTab]: updatedList };
-      setQuestions(updatedAll);
-      showToast("Pertanyaan baru berhasil ditambahkan secara live!");
+      });
     }
 
-    await updateCloudMasterConfig({ questions: updatedAll });
-    const availableCats = formCategories[editingCategoryTab] || ['General'];
-    setQuestionForm({ text: '', category: availableCats[0], requirePhoto: false, requireNoteOnNotOk: true });
+    const updatedQuestions = { ...questions, [selectedEditorTab]: currentList };
+    setQuestions(updatedQuestions);
+    updateCloudMasterConfig(updatedQuestions, null);
+
     setEditingQuestionId(null);
+    setNewQText('');
+    showToast("Pertanyaan SOP berhasil disimpan!");
   };
 
-  const handleStartEditQuestion = (q) => {
-    setEditingQuestionId(q.id);
-    setQuestionForm({
-      text: q.text,
-      category: q.category || (formCategories[editingCategoryTab]?.[0] || 'General'),
-      requirePhoto: !!q.requirePhoto,
-      requireNoteOnNotOk: q.requireNoteOnNotOk !== false
-    });
+  const handleDeleteQuestion = (qId) => {
+    if (!window.confirm("Hapus pertanyaan ini?")) return;
+    const currentList = (questions[selectedEditorTab] || []).filter(q => q.id !== qId);
+    const updatedQuestions = { ...questions, [selectedEditorTab]: currentList };
+    setQuestions(updatedQuestions);
+    updateCloudMasterConfig(updatedQuestions, null);
+    showToast("Pertanyaan dihapus.");
   };
 
-  const handleDeleteQuestion = async (qId) => {
-    if (!window.confirm("Hapus permanen pertanyaan SOP ini dari sistem?")) return;
-    const updatedList = (questions[editingCategoryTab] || []).filter(q => q.id !== qId);
-    const updatedAll = { ...questions, [editingCategoryTab]: updatedList };
-    setQuestions(updatedAll);
-    await updateCloudMasterConfig({ questions: updatedAll });
-    showToast("Pertanyaan berhasil dihapus dari Cloud.");
-  };
-
-  const handleMoveQuestion = async (index, direction) => {
-    const list = [...(questions[editingCategoryTab] || [])];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= list.length) return;
-
+  const handleMoveQuestion = (index, direction) => {
+    const list = [...(questions[selectedEditorTab] || [])];
+    const targetIdx = direction === 'up' ? index - 1 : index + 1;
+    if (targetIdx < 0 || targetIdx >= list.length) return;
     const temp = list[index];
-    list[index] = list[targetIndex];
-    list[targetIndex] = temp;
+    list[index] = list[targetIdx];
+    list[targetIdx] = temp;
 
-    const updatedAll = { ...questions, [editingCategoryTab]: list };
-    setQuestions(updatedAll);
-    await updateCloudMasterConfig({ questions: updatedAll });
+    const updatedQuestions = { ...questions, [selectedEditorTab]: list };
+    setQuestions(updatedQuestions);
+    updateCloudMasterConfig(updatedQuestions, null);
   };
 
-  const handleAddNameRow = (type) => {
-    setAttendance(prev => ({
-      ...prev,
-      [`${type}List`]: [...prev[`${type}List`], '']
-    }));
-  };
-
-  const handleNameChange = (type, index, value) => {
-    const list = [...attendance[`${type}List`]];
-    list[index] = value;
-    setAttendance(prev => ({
-      ...prev,
-      [`${type}List`]: list
-    }));
-  };
-
-  const handleRemoveNameRow = (type, index) => {
-    const list = attendance[`${type}List`].filter((_, i) => i !== index);
-    setAttendance(prev => ({
-      ...prev,
-      [`${type}List`]: list.length > 0 ? list : ['']
-    }));
-  };
-
-  const handleSaveAttendance = async () => {
-    const updated = { ...attendance, isSubmitted: true };
-    setAttendance(updated);
-    await updateCloudMasterConfig({ attendance: updated });
-    showToast("Daftar Kehadiran Berhasil Disimpan ke Cloud!");
-  };
-
-  const handleResetAttendance = async () => {
-    if (window.confirm("Buka kembali form daftar kehadiran untuk diedit?")) {
-      const updated = { ...attendance, isSubmitted: false };
-      setAttendance(updated);
-      await updateCloudMasterConfig({ attendance: updated });
-      showToast("Daftar kehadiran dapat diedit kembali.");
-    }
-  };
-
-  const handleStatusChange = (formId, itemId, status) => {
-    const isFOH = formId.includes('lobi');
-    if (isFOH && !attendance.isSubmitted) {
-      alert("Tim FOH WAJIB mengisi dan menyimpan Daftar Kehadiran Karyawan terlebih dahulu di beranda!");
+  const handleAddCategory = (e) => {
+    e.preventDefault();
+    if (!newCategoryInput.trim()) return;
+    const upperCat = newCategoryInput.trim();
+    const currentCats = formCategories[selectedEditorTab] || [];
+    if (currentCats.includes(upperCat)) {
+      alert("Kategori tersebut sudah ada!");
       return;
     }
-
-    const currentForm = { ...(checklistData[formId] || {}) };
-    currentForm[itemId] = {
-      ...(currentForm[itemId] || {}),
-      status: status
-    };
-
-    setChecklistData({ ...checklistData, [formId]: currentForm });
+    const updatedCats = { ...formCategories, [selectedEditorTab]: [...currentCats, upperCat] };
+    setFormCategories(updatedCats);
+    updateCloudMasterConfig(null, updatedCats);
+    setNewCategoryInput('');
+    showToast("Kategori baru berhasil ditambahkan!");
   };
 
-  const handleItemNoteChange = (formId, itemId, note) => {
-    setChecklistData({
-      ...checklistData,
-      [formId]: {
-        ...(checklistData[formId] || {}),
-        [itemId]: {
-          ...(checklistData[formId]?.[itemId] || {}),
-          note: note
-        }
+  const handleDeleteReportFromCloud = async (firestoreId) => {
+    if (!isAdminLoggedIn) return;
+    if (!window.confirm("Yakin ingin menghapus permanen laporan ini?")) return;
+
+    try {
+      if (db && firestoreId) {
+        await deleteDoc(doc(db, "wss_sop_reports", firestoreId));
+        showToast("Laporan berhasil dihapus!");
       }
-    });
+    } catch (e) {
+      console.error("Gagal hapus laporan:", e);
+    }
   };
 
-  // KOMPRESI FOTO SANGAT TINGGI AGAR AMAN DI FIREBASE CLOUD DATABASE
-  const handlePhotoUpload = (formId, itemId, file) => {
+  const handleSaveAttendance = () => {
+    if (!attendance.hadirCount) {
+      alert("Harap isi jumlah karyawan hadir!");
+      return;
+    }
+    setAttendance(prev => ({ ...prev, isSubmitted: true }));
+    showToast("Data kehadiran disimpan!");
+  };
+
+  const handlePhotoCapture = (qId, e) => {
+    const file = e.target.files[0];
     if (!file) return;
+
     const reader = new FileReader();
-    reader.onloadend = () => {
+    reader.onload = (event) => {
       const img = new Image();
-      img.src = reader.result;
+      img.src = event.target.result;
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 350;  
+        const MAX_WIDTH = 350;
         const MAX_HEIGHT = 350;
         let width = img.width;
         let height = img.height;
 
         if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
-          }
+          if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
         } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
-          }
+          if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
         }
 
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        
-        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.45);
 
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.45);
         setChecklistData(prev => ({
           ...prev,
-          [formId]: {
-            ...(prev[formId] || {}),
-            [itemId]: {
-              ...(prev[formId]?.[itemId] || {}),
-              photo: compressedBase64
-            }
-          }
+          [qId]: { ...(prev[qId] || {}), photo: compressedDataUrl }
         }));
-        showToast("Foto bukti berhasil dikompresi & diamankan!");
       };
     };
     reader.readAsDataURL(file);
   };
 
-  // SIMPAN KE FIREBASE CLOUD FIRESTORE (OTOMATIS MUNCUL DI SEMUA PERANGKAT)
-  const handleSubmitReport = async (formId, title, docNo) => {
-    const allQuestions = questions[formId] || [];
-    const currentQuestions = allQuestions.filter(q => q.isActive !== false);
-    const currentAnswers = checklistData[formId] || {};
+  const handleAnswerChange = (qId, field, value) => {
+    setChecklistData(prev => ({
+      ...prev,
+      [qId]: { ...(prev[qId] || { status: 'OK' }), [field]: value }
+    }));
+  };
 
-    for (let q of currentQuestions) {
-      const ans = currentAnswers[q.id] || {};
-      if (q.requirePhoto && !ans.photo) {
-        alert(`PENGINGAT: Item "${q.text}" wajib menyertakan foto bukti kamera!`);
-        return;
-      }
-      if (ans.status === 'NOT_OK' && (!ans.note || !String(ans.note).trim())) {
-        alert(`PENGINGAT: Item "${q.text}" berstatus Tidak OK. Anda WAJIB mengisi Catatan / Tindak Lanjut sebelum menyimpan!`);
-        return;
-      }
-    }
-
-    if (!headers.diisiOleh.trim()) {
-      alert("Harap isi nama petugas pada form identitas terlebih dahulu!");
+  const handleSubmitChecklistForm = async () => {
+    if (!headers.diisiOleh.trim()) { alert("Nama Petugas / PIC wajib diisi!"); return; }
+    if (!headers.diperiksaOleh.trim()) { alert("Nama Pemeriksa wajib diisi!"); return; }
+    
+    // HANYA FOH YANG WAJIB CEK ABSENSI KARYAWAN
+    if (activeTab.includes('lobi') && !attendance.isSubmitted) {
+      alert("Untuk Form FOH, harap isi dan simpan Daftar Kehadiran Karyawan terlebih dahulu di Dashboard Utama!");
       return;
     }
 
+    const currentQList = questions[activeTab] || [];
+    for (let q of currentQList) {
+      const ans = checklistData[q.id];
+      if (!ans || !ans.status) { alert(`Pertanyaan "${q.text}" belum dijawab!`); return; }
+      if (ans.status === 'Tidak' && (!ans.note || !ans.note.trim())) { alert(`Pertanyaan bernilai "Tidak" wajib mengisi Catatan!`); return; }
+      if (q.requirePhoto && !ans.photo) { alert(`Pertanyaan "${q.text}" wajib menyertakan bukti foto!`); return; }
+    }
+
     setIsSubmitting(true);
-
-    const itemsSummary = currentQuestions.map(q => ({
-      id: String(q.id || ''),
-      text: String(q.text || ''),
-      category: String(q.category || ''),
-      status: String(currentAnswers[q.id]?.status || 'OK'),
-      note: String(currentAnswers[q.id]?.note || ''),
-      photo: currentAnswers[q.id]?.photo || null
-    }));
-
-    const reportId = `WSS_CLOUD_REP_${Date.now()}`;
-    const newReport = {
-      id: reportId,
-      form_id: formId,
-      form_title: title,
-      document_no: docNo,
-      timestamp: new Date().toLocaleString('id-ID'),
-      timestamp_raw: Date.now(),
-      headers: { ...headers },
-      attendance: formId.includes('lobi') ? { ...attendance } : null,
-      items: itemsSummary
-    };
-
     try {
-      if (db) {
-        await addDoc(collection(db, "wss_sop_reports"), newReport);
-      }
-      setChecklistData(prev => ({ ...prev, [formId]: {} }));
-      showToast("Laporan Berhasil Disimpan ke Cloud & Otomatis Muncul di Semua Perangkat!");
-      setActiveTab('home');
-    } catch (err) {
-      console.error("Gagal simpan cloud:", err);
-      alert("Gagal menyimpan ke Cloud Firebase. Periksa koneksi internet Anda.");
+      const reportPayload = {
+        formType: activeTab,
+        formTitle: getFormTitle(activeTab),
+        headers,
+        attendance: activeTab.includes('lobi') ? attendance : { isSubmitted: false },
+        checklistData,
+        timestamp_readable: new Date().toLocaleString('id-ID'),
+        timestamp_raw: Date.now(),
+        dateStr: headers.tanggal
+      };
+
+      if (db) await addDoc(collection(db, "wss_sop_reports"), reportPayload);
+
+      showToast("Laporan berhasil disimpan ke Database Cloud!");
+      setChecklistData({});
+      setActiveTab('dashboard');
+    } catch (e) {
+      console.error("Gagal simpan laporan:", e);
+      alert("Gagal menyimpan ke server cloud.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDeleteHistory = async (firestoreId) => {
-    if (!isAdminLoggedIn) {
-      alert("Hanya Admin yang berhak menghapus riwayat laporan!");
-      return;
+  const getFormTitle = (key) => {
+    switch(key) {
+      case 'opening_lobi': return 'Checklist Opening — FOH (Lobi & Bar)';
+      case 'closing_lobi': return 'Checklist Closing — FOH (Lobi & Bar)';
+      case 'opening_kitchen': return 'Checklist Opening — BOH (Kitchen)';
+      case 'closing_kitchen': return 'Checklist Closing — BOH (Kitchen)';
+      default: return key;
     }
-    if (window.confirm("Hapus permanen laporan dan foto bukti ini dari cloud?")) {
-      try {
-        if (db && firestoreId) {
-          const { deleteDoc, doc: firestoreDoc } = await import('firebase/firestore');
-          await deleteDoc(firestoreDoc(db, "wss_sop_reports", firestoreId));
-        }
-        showToast("Laporan berhasil dihapus dari cloud.");
-      } catch (e) {
-        console.error("Gagal hapus:", e);
-        alert("Gagal menghapus laporan.");
-      }
-    }
-  };
-
-  const getFormStats = (formId) => {
-    const allQuestions = questions[formId] || [];
-    const currentQuestions = allQuestions.filter(q => q.isActive !== false);
-    const currentAnswers = checklistData[formId] || {};
-    let ok = 0, notOk = 0;
-
-    currentQuestions.forEach(q => {
-      const st = currentAnswers[q.id]?.status;
-      if (st === 'OK') ok++;
-      else if (st === 'NOT_OK') notOk++;
-    });
-
-    const total = currentQuestions.length;
-    const filled = ok + notOk;
-    const progress = total > 0 ? Math.round((filled / total) * 100) : 0;
-
-    return { total, ok, notOk, filled, progress };
   };
 
   const todayDateStr = new Date().toISOString().split('T')[0];
-  const isFormSubmittedToday = (formId) => {
-    return historyReports.some(rep => rep.form_id === formId && rep.headers?.tanggal === todayDateStr);
-  };
-
-  const todayReports = historyReports.filter(rep => rep.headers?.tanggal === todayDateStr);
+  const todayReports = historyReports.filter(r => r.headers?.tanggal === todayDateStr);
+  const totalReportsCount = historyReports.length;
+  const fohCount = historyReports.filter(r => r.formType?.includes('lobi')).length;
+  const bohCount = historyReports.filter(r => r.formType?.includes('kitchen')).length;
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#fff5f5', fontFamily: 'Inter, system-ui, sans-serif', paddingBottom: '60px' }}>
+    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans pb-20 selection:bg-rose-600 selection:text-white">
       
-      {/* TOAST NOTIFICATION */}
+      {/* Toast Notification */}
       {toastMessage && (
-        <div style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 9999, backgroundColor: '#991b1b', color: '#fff', fontSize: '13px', fontWeight: '700', padding: '14px 20px', borderRadius: '14px', boxShadow: '0 12px 30px rgba(153,27,27,0.3)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Check size={18} strokeWidth={3} /> {toastMessage}
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white px-5 py-3 rounded-2xl shadow-2xl text-xs font-bold flex items-center gap-2 border border-slate-700 animate-bounce">
+          <Check size={16} className="text-emerald-400" /> {toastMessage}
         </div>
       )}
 
       {/* HEADER UTAMA */}
-      <header style={{ backgroundColor: '#991b1b', color: '#fff', position: 'sticky', top: 0, zIndex: 40, borderBottom: '1px solid #b91c1c', boxShadow: '0 4px 20px -4px rgba(153,27,27,0.2)' }}>
-        <div style={{ maxWidth: '1150px', margin: '0 auto', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          
-          <div onClick={() => setActiveTab('home')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{ width: '48px', height: '48px', borderRadius: '14px', backgroundColor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
-              <img 
-                src="https://raw.githubusercontent.com/username/repo/main/images/image_d8fbb9.png" 
-                alt="Logo" 
-                style={{ height: '38px', objectFit: 'contain' }} 
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                }}
-              />
+      <header className="bg-slate-900/90 backdrop-blur-xl border-b border-slate-800 sticky top-0 z-40">
+        <div className="max-w-6xl mx-auto px-4 py-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-red-600 to-amber-500 flex items-center justify-center shadow-lg shadow-red-600/30">
+              <UtensilsCrossed size={20} className="text-white" />
             </div>
             <div>
-              <h1 style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: '#fef08a', letterSpacing: '0.5px' }}>WARUNG SAMBAL SAMUDA</h1>
-              <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#fca5a5', fontWeight: 800, letterSpacing: '1px' }}>PEDASNYA DASSS!!!!!</p>
+              <h1 className="text-sm sm:text-base font-black tracking-wide text-white m-0 leading-tight">WARUNG SAMBAL SAMUDA</h1>
+              <p className="text-[10px] sm:text-xs font-bold text-amber-400 tracking-wider uppercase m-0">SOP Digital Control System</p>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {isAdminLoggedIn && (
-              <button
-                onClick={() => setShowQuestionEditorModal(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '9px 14px', borderRadius: '12px', fontWeight: '800', backgroundColor: '#fef08a', color: '#7f1d1d', border: 'none', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}
-              >
-                <Settings size={15} /> Kelola Pertanyaan
-              </button>
+          <div className="flex items-center gap-3">
+            {isSyncingCloud && (
+              <span className="hidden sm:flex items-center gap-1.5 text-[11px] bg-amber-500/10 text-amber-300 px-3 py-1.5 rounded-xl border border-amber-500/20 font-medium">
+                <RefreshCw size={12} className="animate-spin text-amber-400" /> Sync Cloud
+              </span>
             )}
 
-            <button
-              onClick={() => setActiveTab('history')}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '9px 14px', borderRadius: '12px', fontWeight: '800', backgroundColor: activeTab === 'history' ? '#fef08a' : '#7f1d1d', color: activeTab === 'history' ? '#7f1d1d' : '#fca5a5', border: 'none', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}
-            >
-              <FolderArchive size={15} /> Riwayat Arsip
-            </button>
-
             {isAdminLoggedIn ? (
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  onClick={() => setShowChangePinModal(true)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', padding: '9px 12px', borderRadius: '12px', fontWeight: '800', backgroundColor: '#fef08a', color: '#7f1d1d', border: 'none', cursor: 'pointer' }}
-                >
-                  <Key size={14} /> PIN
-                </button>
-                <button
-                  onClick={() => { setIsAdminLoggedIn(false); showToast("Keluar Mode Admin"); }}
-                  style={{ fontSize: '12px', padding: '9px 12px', borderRadius: '12px', fontWeight: '800', backgroundColor: '#450a0a', color: '#fff', border: 'none', cursor: 'pointer' }}
-                >
-                  Keluar
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowPinModal(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '9px 14px', borderRadius: '12px', fontWeight: '800', backgroundColor: '#7f1d1d', color: '#fca5a5', border: '1px solid #b91c1c', cursor: 'pointer' }}
+              <button 
+                onClick={() => setIsAdminLoggedIn(false)}
+                className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-sm"
               >
-                <Lock size={15} /> Admin Mode
+                <Unlock size={14} /> Admin Aktif
+              </button>
+            ) : (
+              <button 
+                onClick={() => setShowPinModal(true)}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-sm"
+              >
+                <Lock size={14} /> Login Admin
               </button>
             )}
           </div>
         </div>
       </header>
 
-      {/* SUB HEADER NAVIGASI KEMBALI */}
-      {activeTab !== 'home' && (
-        <div style={{ backgroundColor: '#fff', borderBottom: '1px solid #fed7d7', position: 'sticky', top: '73px', zIndex: 30, boxShadow: '0 4px 10px rgba(0,0,0,0.02)' }}>
-          <div style={{ maxWidth: '1150px', margin: '0 auto', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      {/* NAVIGASI TABS */}
+      <nav className="bg-slate-900 border-b border-slate-800 sticky top-[65px] z-30 shadow-md">
+        <div className="max-w-6xl mx-auto px-4 flex overflow-x-auto no-scrollbar gap-2 py-2">
+          {[
+            { id: 'dashboard', label: 'Dashboard Utama', icon: <LayoutDashboard size={16} /> },
+            { id: 'foh', label: 'FOH (Lobi & Bar)', icon: <Building2 size={16} /> },
+            { id: 'boh', label: 'BOH (Kitchen)', icon: <UtensilsCrossed size={16} /> },
+            { id: 'history', label: 'Arsip Cloud', icon: <FolderArchive size={16} /> },
+            ...(isAdminLoggedIn ? [{ id: 'admin_panel', label: 'Panel Editor SOP', icon: <ShieldCheck size={16} /> }] : [])
+          ].map((tab) => (
             <button
-              onClick={() => setActiveTab('home')}
-              style={{ fontSize: '12px', fontWeight: '800', color: '#991b1b', backgroundColor: '#fff5f5', border: '1px solid #feb2b2', padding: '8px 14px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeTab === tab.id ? 'bg-red-600 text-white shadow-lg shadow-red-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
             >
-              ← Kembali ke Beranda Utama
+              {tab.icon} {tab.label}
             </button>
-            <span style={{ fontSize: '12px', fontWeight: 900, color: '#991b1b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              {activeTab === 'history' && 'Arsip Laporan & Foto Bukti Cloud'}
-              {activeTab === 'opening_lobi' && 'FOH — Opening Lobi, Bar & Area Umum'}
-              {activeTab === 'closing_lobi' && 'FOH — Closing Lobi, Bar & Area Umum'}
-              {activeTab === 'opening_kitchen' && 'BOH — Opening Kitchen'}
-              {activeTab === 'closing_kitchen' && 'BOH — Closing Kitchen'}
-            </span>
-          </div>
+          ))}
         </div>
-      )}
+      </nav>
 
-      {/* MAIN CONTAINER */}
-      <main style={{ maxWidth: '1150px', margin: '28px auto', padding: '0 24px' }}>
+      {/* CONTAINER UTAMA */}
+      <main className="max-w-6xl mx-auto px-4 py-6">
 
-        {/* ==================== BERANDA UTAMA ==================== */}
-        {activeTab === 'home' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-
-            {/* HERO BANNER ELEGAN */}
-            <div style={{ background: 'linear-gradient(135deg, #991b1b 0%, #7f1d1d 50%, #450a0a 100%)', borderRadius: '28px', padding: '36px 40px', color: '#fff', boxShadow: '0 15px 35px -10px rgba(153,27,27,0.3)', position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', right: '-15px', bottom: '-40px', fontSize: '140px', opacity: '0.06', pointerEvents: 'none' }}>🌶️</div>
-              <div style={{ maxWidth: '720px', position: 'relative', zIndex: 10 }}>
-                <span style={{ fontSize: '11px', fontWeight: 900, backgroundColor: '#fef08a', color: '#7f1d1d', padding: '5px 12px', borderRadius: '999px', textTransform: 'uppercase', letterSpacing: '1px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  <Cloud size={14} /> Real-Time Live Sync Multi-Device 24/7
+        {/* 1. DASHBOARD */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6">
+            
+            <div className="bg-gradient-to-r from-red-950 via-slate-900 to-amber-950 p-6 sm:p-8 rounded-3xl border border-red-900/50 shadow-2xl relative overflow-hidden">
+              <div className="absolute right-0 top-0 w-80 h-80 bg-red-600/10 rounded-full blur-3xl pointer-events-none"></div>
+              <div className="relative z-10 max-w-2xl">
+                <span className="bg-red-500/20 text-red-300 border border-red-500/30 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full inline-block mb-3">
+                  Operational Control Center
                 </span>
-                <h2 style={{ margin: '14px 0 10px 0', fontSize: '26px', fontWeight: 900, color: '#fff', letterSpacing: '-0.5px' }}>Sistem Checklist Digital Warung Sambal Samuda</h2>
-                <p style={{ margin: 0, fontSize: '13px', color: '#fca5a5', lineHeight: '1.6', fontWeight: '500' }}>
-                  Setiap perubahan (absen, checklist, foto, pengaturan admin) otomatis terhubung secara real-time ke semua perangkat yang memiliki link.
+                <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide mb-2">Selamat Datang di Portal SOP Warung Sambal Samuda</h2>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-6">
+                  Absensi karyawan wajib diisi sebelum mengakses form FOH. Form BOH dapat diakses secara langsung. Semua data tersinkronisasi real-time ke cloud.
                 </p>
-              </div>
-            </div>
-
-            {/* KARTU STATISTIK RINGKAS */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '18px' }}>
-              <div style={{ backgroundColor: '#fff', borderRadius: '20px', padding: '20px 24px', border: '1px solid #fed7d7', boxShadow: '0 6px 15px rgba(153,27,27,0.04)', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <div style={{ width: '48px', height: '48px', borderRadius: '14px', backgroundColor: '#fff5f5', color: '#991b1b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Calendar size={22} strokeWidth={2.5} />
-                </div>
-                <div>
-                  <span style={{ fontSize: '11px', color: '#b91c1c', fontWeight: '800', display: 'block', textTransform: 'uppercase' }}>Tanggal Hari Ini</span>
-                  <strong style={{ fontSize: '14px', color: '#450a0a', fontWeight: '900' }}>{todayDateStr}</strong>
-                </div>
-              </div>
-
-              <div style={{ backgroundColor: '#fff', borderRadius: '20px', padding: '20px 24px', border: '1px solid #fed7d7', boxShadow: '0 6px 15px rgba(153,27,27,0.04)', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <div style={{ width: '48px', height: '48px', borderRadius: '14px', backgroundColor: '#fff5f5', color: '#991b1b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Users size={22} strokeWidth={2.5} />
-                </div>
-                <div>
-                  <span style={{ fontSize: '11px', color: '#b91c1c', fontWeight: '800', display: 'block', textTransform: 'uppercase' }}>Kehadiran Staf</span>
-                  <strong style={{ fontSize: '14px', color: attendance.isSubmitted ? '#059669' : '#dc2626', fontWeight: '900' }}>{attendance.isSubmitted ? `${attendance.hadirCount} Orang Hadir` : 'Belum Diinput'}</strong>
-                </div>
-              </div>
-
-              <div style={{ backgroundColor: '#fff', borderRadius: '20px', padding: '20px 24px', border: '1px solid #fed7d7', boxShadow: '0 6px 15px rgba(153,27,27,0.04)', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <div style={{ width: '48px', height: '48px', borderRadius: '14px', backgroundColor: '#fff5f5', color: '#991b1b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Cloud size={22} strokeWidth={2.5} />
-                </div>
-                <div>
-                  <span style={{ fontSize: '11px', color: '#b91c1c', fontWeight: '800', display: 'block', textTransform: 'uppercase' }}>Status Cloud</span>
-                  <strong style={{ fontSize: '14px', color: isSyncingCloud ? '#d97706' : '#059669', fontWeight: '900' }}>{isSyncingCloud ? 'Sinkronisasi...' : 'Live Connected'}</strong>
+                <div className="flex flex-wrap gap-3">
+                  <button 
+                    onClick={() => setActiveTab('foh')}
+                    className="bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-2.5 rounded-2xl text-xs shadow-lg shadow-red-600/30 flex items-center gap-2 transition-transform active:scale-95"
+                  >
+                    <Building2 size={16} /> Buka Form FOH
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('boh')}
+                    className="bg-slate-800 hover:bg-slate-700 text-white font-bold px-5 py-2.5 rounded-2xl text-xs border border-slate-700 flex items-center gap-2 transition-transform active:scale-95"
+                  >
+                    <UtensilsCrossed size={16} /> Buka Form BOH
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* BOX 1: ABSENSI KARYAWAN */}
-            <div style={{ backgroundColor: '#fff', borderRadius: '28px', padding: '32px', border: '1px solid #fed7d7', boxShadow: '0 10px 30px rgba(153,27,27,0.06)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #fff5f5', paddingBottom: '18px', marginBottom: '24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <div style={{ padding: '12px', backgroundColor: '#fff5f5', color: '#991b1b', borderRadius: '14px' }}>
-                    <Users size={22} strokeWidth={2.5} />
-                  </div>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: '#991b1b' }}>Daftar Kehadiran Seluruh Karyawan</h3>
-                    <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#b91c1c', fontWeight: '500' }}>Wajib diinput dan disimpan sebelum mengisi checklist FOH</p>
-                  </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-slate-800/80 backdrop-blur border border-slate-700/80 p-5 rounded-3xl shadow-sm flex items-center justify-between">
+                <div>
+                  <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Total Laporan Cloud</p>
+                  <h3 className="text-2xl font-black text-white m-0">{totalReportsCount}</h3>
                 </div>
-                {attendance.isSubmitted ? (
-                  <span style={{ padding: '7px 16px', backgroundColor: '#d1fae5', color: '#065f46', fontSize: '12px', fontWeight: 900, borderRadius: '999px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    ✨ Absensi Tersimpan
-                  </span>
-                ) : (
-                  <span style={{ padding: '7px 16px', backgroundColor: '#fee2e2', color: '#991b1b', fontSize: '12px', fontWeight: 900, borderRadius: '999px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <AlertTriangle size={14} /> Belum Disimpan
-                  </span>
-                )}
+                <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400">
+                  <FileText size={24} />
+                </div>
+              </div>
+
+              <div className="bg-slate-800/80 backdrop-blur border border-slate-700/80 p-5 rounded-3xl shadow-sm flex items-center justify-between">
+                <div>
+                  <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Laporan FOH</p>
+                  <h3 className="text-2xl font-black text-white m-0">{fohCount}</h3>
+                </div>
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                  <Building2 size={24} />
+                </div>
+              </div>
+
+              <div className="bg-slate-800/80 backdrop-blur border border-slate-700/80 p-5 rounded-3xl shadow-sm flex items-center justify-between">
+                <div>
+                  <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Laporan BOH</p>
+                  <h3 className="text-2xl font-black text-white m-0">{bohCount}</h3>
+                </div>
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <UtensilsCrossed size={24} />
+                </div>
+              </div>
+            </div>
+
+            {/* ABSENSI KARYAWAN (Wajib untuk FOH) */}
+            <div className="bg-slate-800/90 border border-slate-700 p-6 sm:p-8 rounded-3xl shadow-xl space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-700/80 pb-4">
+                <div>
+                  <span className="text-[10px] font-black uppercase bg-amber-500/20 text-amber-300 px-3 py-1 rounded-full border border-amber-500/30">Wajib untuk FOH</span>
+                  <h3 className="text-base sm:text-lg font-black text-white mt-1 flex items-center gap-2">
+                    <Users size={20} className="text-amber-400" /> Daftar Kehadiran Karyawan Hari Ini
+                  </h3>
+                </div>
+                <span className="bg-slate-900 text-slate-300 text-xs font-bold px-4 py-2 rounded-2xl border border-slate-700 w-fit">{todayDateStr}</span>
               </div>
 
               {attendance.isSubmitted ? (
-                <div style={{ backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '20px' }}>🎉</span>
-                      <span style={{ fontSize: '14px', fontWeight: 900, color: '#065f46' }}>Absensi Hari Ini Telah Dikunci & Tersimpan Aman di Cloud</span>
+                <div className="bg-emerald-950/40 border border-emerald-500/30 p-5 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
+                      <CheckCircle2 size={18} /> Kehadiran Karyawan Telah Disimpan (Form FOH Terbuka)
                     </div>
-                    <button
-                      onClick={handleResetAttendance}
-                      style={{ fontSize: '12px', fontWeight: 900, backgroundColor: '#fff', color: '#047857', border: '1px solid #34d399', padding: '8px 16px', borderRadius: '12px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.03)', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    <button 
+                      onClick={() => setAttendance(prev => ({ ...prev, isSubmitted: false }))}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3.5 py-2 rounded-xl border border-slate-600 transition-all"
                     >
-                      <RefreshCw size={14} /> Edit Data Kehadiran
+                      Edit Absen
                     </button>
                   </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', backgroundColor: '#fff', padding: '16px', borderRadius: '14px', border: '1px solid #a7f3d0' }}>
-                    <div>
-                      <span style={{ fontSize: '11px', color: '#047857', display: 'block', fontWeight: 'bold' }}>Total Hadir</span>
-                      <strong style={{ fontSize: '18px', color: '#065f46' }}>{attendance.hadirCount} Orang</strong>
+                  
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 text-xs">
+                    <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-700">
+                      <span className="text-slate-400 block mb-0.5">Hadir</span>
+                      <strong className="text-white text-sm">{attendance.hadirCount} Orang</strong>
                     </div>
-                    <div>
-                      <span style={{ fontSize: '11px', color: '#dc2626', display: 'block', fontWeight: 'bold' }}>Sakit</span>
-                      <span style={{ fontSize: '12px', color: '#450a0a', fontWeight: 'bold' }}>{attendance.sakitList.filter(Boolean).length > 0 ? attendance.sakitList.filter(Boolean).join(', ') : 'Tidak ada'}</span>
+                    <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-700">
+                      <span className="text-slate-400 block mb-0.5">Sakit</span>
+                      <strong className="text-amber-400 text-sm">{attendance.sakitList.filter(Boolean).length} Orang</strong>
                     </div>
-                    <div>
-                      <span style={{ fontSize: '11px', color: '#d97706', display: 'block', fontWeight: 'bold' }}>Izin</span>
-                      <span style={{ fontSize: '12px', color: '#450a0a', fontWeight: 'bold' }}>{attendance.izinList.filter(Boolean).length > 0 ? attendance.izinList.filter(Boolean).join(', ') : 'Tidak ada'}</span>
+                    <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-700">
+                      <span className="text-slate-400 block mb-0.5">Izin</span>
+                      <strong className="text-sky-400 text-sm">{attendance.izinList.filter(Boolean).length} Orang</strong>
                     </div>
-                    <div>
-                      <span style={{ fontSize: '11px', color: '#991b1b', display: 'block', fontWeight: 'bold' }}>Alpha</span>
-                      <span style={{ fontSize: '12px', color: '#450a0a', fontWeight: 'bold' }}>{attendance.alphaList.filter(Boolean).length > 0 ? attendance.alphaList.filter(Boolean).join(', ') : 'Tidak ada'}</span>
+                    <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-700">
+                      <span className="text-slate-400 block mb-0.5">Tanpa Keterangan</span>
+                      <strong className="text-rose-400 text-sm">{attendance.alphaList.filter(Boolean).length} Orang</strong>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  <div style={{ backgroundColor: '#fff5f5', padding: '18px', borderRadius: '18px', border: '1px solid #fed7d7' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 900, color: '#991b1b', marginBottom: '8px' }}>
-                      Jumlah Karyawan Hadir Hari Ini *
-                    </label>
-                    <input
+                <div className="space-y-6 bg-slate-900/60 p-6 rounded-2xl border border-slate-800">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-200 mb-2">Jumlah Karyawan Hadir (Masuk Kerja):</label>
+                    <input 
                       type="number"
-                      min="0"
+                      placeholder="Contoh: 10"
                       value={attendance.hadirCount}
-                      onChange={(e) => setAttendance({ ...attendance, hadirCount: parseInt(e.target.value) || 0 })}
-                      style={{ width: '100%', maxWidth: '240px', backgroundColor: '#fff', border: '1px solid #feb2b2', borderRadius: '12px', padding: '12px 16px', fontSize: '15px', fontWeight: 'bold', outline: 'none' }}
-                      placeholder="Contoh: 8"
+                      onChange={(e) => setAttendance({ ...attendance, hadirCount: e.target.value })}
+                      className="w-full sm:w-56 bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 text-xs font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
                     />
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px' }}>
-                    {/* SAKIT */}
-                    <div style={{ backgroundColor: '#fff5f5', padding: '18px', borderRadius: '18px', border: '1px solid #fed7d7' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 900, color: '#dc2626' }}>Karyawan Sakit</span>
-                        <button type="button" onClick={() => handleAddNameRow('sakit')} style={{ fontSize: '11px', fontWeight: '800', backgroundColor: '#fff', color: '#dc2626', border: '1px solid #feb2b2', padding: '4px 12px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Plus size={12} /> Tambah
-                        </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-2 border-t border-slate-800">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-amber-400">Karyawan Sakit:</label>
+                        <button type="button" onClick={() => setAttendance(p => ({ ...p, sakitList: [...p.sakitList, ''] }))} className="text-[11px] text-amber-300 font-bold hover:underline">+ Nama</button>
                       </div>
                       {attendance.sakitList.map((name, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
-                          <input
-                            type="text"
+                        <div key={idx} className="flex gap-2">
+                          <input 
+                            type="text" 
+                            placeholder={`Nama sakit #${idx+1}`}
                             value={name}
-                            onChange={(e) => handleNameChange('sakit', idx, e.target.value)}
-                            placeholder={`Nama sakit #${idx + 1}`}
-                            style={{ width: '100%', backgroundColor: '#fff', border: '1px solid #feb2b2', borderRadius: '10px', padding: '9px 12px', fontSize: '12px', outline: 'none' }}
+                            onChange={(e) => {
+                              const list = [...attendance.sakitList];
+                              list[idx] = e.target.value;
+                              setAttendance({ ...attendance, sakitList: list });
+                            }}
+                            className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2 text-xs"
                           />
                           {attendance.sakitList.length > 1 && (
-                            <button type="button" onClick={() => handleRemoveNameRow('sakit', idx)} style={{ border: 'none', background: 'transparent', color: '#991b1b', cursor: 'pointer', fontWeight: 'bold' }}><X size={16} /></button>
+                            <button type="button" onClick={() => setAttendance(p => ({ ...p, sakitList: p.sakitList.filter((_, i) => i !== idx) }))} className="text-rose-400 px-2"><Trash2 size={14} /></button>
                           )}
                         </div>
                       ))}
                     </div>
 
-                    {/* IZIN */}
-                    <div style={{ backgroundColor: '#fff5f5', padding: '18px', borderRadius: '18px', border: '1px solid #fed7d7' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 900, color: '#d97706' }}>Karyawan Izin</span>
-                        <button type="button" onClick={() => handleAddNameRow('izin')} style={{ fontSize: '11px', fontWeight: '800', backgroundColor: '#fff', color: '#d97706', border: '1px solid #fcd34d', padding: '4px 12px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Plus size={12} /> Tambah
-                        </button>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-sky-400">Karyawan Izin:</label>
+                        <button type="button" onClick={() => setAttendance(p => ({ ...p, izinList: [...p.izinList, ''] }))} className="text-[11px] text-sky-300 font-bold hover:underline">+ Nama</button>
                       </div>
                       {attendance.izinList.map((name, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
-                          <input
-                            type="text"
+                        <div key={idx} className="flex gap-2">
+                          <input 
+                            type="text" 
+                            placeholder={`Nama izin #${idx+1}`}
                             value={name}
-                            onChange={(e) => handleNameChange('izin', idx, e.target.value)}
-                            placeholder={`Nama izin #${idx + 1}`}
-                            style={{ width: '100%', backgroundColor: '#fff', border: '1px solid #feb2b2', borderRadius: '10px', padding: '9px 12px', fontSize: '12px', outline: 'none' }}
+                            onChange={(e) => {
+                              const list = [...attendance.izinList];
+                              list[idx] = e.target.value;
+                              setAttendance({ ...attendance, izinList: list });
+                            }}
+                            className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2 text-xs"
                           />
                           {attendance.izinList.length > 1 && (
-                            <button type="button" onClick={() => handleRemoveNameRow('izin', idx)} style={{ border: 'none', background: 'transparent', color: '#991b1b', cursor: 'pointer', fontWeight: 'bold' }}><X size={16} /></button>
+                            <button type="button" onClick={() => setAttendance(p => ({ ...p, izinList: p.izinList.filter((_, i) => i !== idx) }))} className="text-rose-400 px-2"><Trash2 size={14} /></button>
                           )}
                         </div>
                       ))}
                     </div>
 
-                    {/* ALPHA */}
-                    <div style={{ backgroundColor: '#fff5f5', padding: '18px', borderRadius: '18px', border: '1px solid #fed7d7' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 900, color: '#991b1b' }}>Tanpa Keterangan (Alpha)</span>
-                        <button type="button" onClick={() => handleAddNameRow('alpha')} style={{ fontSize: '11px', fontWeight: '800', backgroundColor: '#fff', color: '#991b1b', border: '1px solid #feb2b2', padding: '4px 12px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Plus size={12} /> Tambah
-                        </button>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-rose-400">Tanpa Keterangan (Alpha):</label>
+                        <button type="button" onClick={() => setAttendance(p => ({ ...p, alphaList: [...p.alphaList, ''] }))} className="text-[11px] text-rose-300 font-bold hover:underline">+ Nama</button>
                       </div>
                       {attendance.alphaList.map((name, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
-                          <input
-                            type="text"
+                        <div key={idx} className="flex gap-2">
+                          <input 
+                            type="text" 
+                            placeholder={`Nama alpha #${idx+1}`}
                             value={name}
-                            onChange={(e) => handleNameChange('alpha', idx, e.target.value)}
-                            placeholder={`Nama alpha #${idx + 1}`}
-                            style={{ width: '100%', backgroundColor: '#fff', border: '1px solid #feb2b2', borderRadius: '10px', padding: '9px 12px', fontSize: '12px', outline: 'none' }}
+                            onChange={(e) => {
+                              const list = [...attendance.alphaList];
+                              list[idx] = e.target.value;
+                              setAttendance({ ...attendance, alphaList: list });
+                            }}
+                            className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2 text-xs"
                           />
                           {attendance.alphaList.length > 1 && (
-                            <button type="button" onClick={() => handleRemoveNameRow('alpha', idx)} style={{ border: 'none', background: 'transparent', color: '#991b1b', cursor: 'pointer', fontWeight: 'bold' }}><X size={16} /></button>
+                            <button type="button" onClick={() => setAttendance(p => ({ ...p, alphaList: p.alphaList.filter((_, i) => i !== idx) }))} className="text-rose-400 px-2"><Trash2 size={14} /></button>
                           )}
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
-                    <button
-                      type="button"
-                      onClick={handleSaveAttendance}
-                      style={{ backgroundColor: '#991b1b', color: '#fff', border: 'none', padding: '14px 28px', borderRadius: '14px', fontWeight: 900, fontSize: '13px', cursor: 'pointer', boxShadow: '0 6px 15px rgba(153,27,27,0.25)', display: 'flex', alignItems: 'center', gap: '8px' }}
-                    >
-                      <Check size={16} strokeWidth={3} /> Simpan Kehadiran
-                    </button>
-                  </div>
+                  <button 
+                    type="button"
+                    onClick={handleSaveAttendance}
+                    className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-3.5 rounded-2xl text-xs shadow-lg transition-transform active:scale-98 mt-4"
+                  >
+                    Simpan Kehadiran Karyawan (Buka Akses FOH)
+                  </button>
                 </div>
               )}
             </div>
 
-            {/* GRID FOH & BOH */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px' }}>
-              
-              {/* FOH CARD */}
-              <div style={{ backgroundColor: '#fff', borderRadius: '28px', padding: '28px', border: '1px solid #fed7d7', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 10px 30px rgba(153,27,27,0.05)' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #fff5f5', paddingBottom: '16px', marginBottom: '20px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                      <div style={{ padding: '12px', backgroundColor: '#fff5f5', color: '#991b1b', borderRadius: '14px' }}>
-                        <Building2 size={24} strokeWidth={2.5} />
-                      </div>
-                      <div>
-                        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: '#991b1b' }}>FOH (Front of House)</h3>
-                        <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#b91c1c', fontWeight: '500' }}>Lobi, Bar, Parkir, Taman, Toilet & Musholah</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    {/* Opening Lobi */}
-                    <div style={{ backgroundColor: '#fff5f5', padding: '18px', borderRadius: '18px', border: '1px solid #fed7d7', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.2s' }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                          <span style={{ fontSize: '10px', fontWeight: 900, color: '#991b1b', backgroundColor: '#fee2e2', padding: '3px 8px', borderRadius: '6px' }}>SOP-LOBI-001</span>
-                          {isFormSubmittedToday('opening_lobi') && (
-                            <span style={{ fontSize: '10px', fontWeight: 900, backgroundColor: '#d1fae5', color: '#065f46', padding: '3px 10px', borderRadius: '999px' }}>✓ Sudah Diinput</span>
-                          )}
-                        </div>
-                        <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 900, color: '#450a0a' }}>Opening Lobi, Bar & Area Umum</h4>
-                      </div>
-                      <button
-                        onClick={() => {
-                          if (!attendance.isSubmitted) {
-                            alert("Tim FOH WAJIB mengisi dan menyimpan Daftar Kehadiran Karyawan terlebih dahulu di beranda!");
-                            return;
-                          }
-                          setActiveTab('opening_lobi');
-                        }}
-                        style={{ backgroundColor: attendance.isSubmitted ? '#991b1b' : '#cbd5e1', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '12px', fontSize: '12px', fontWeight: 900, cursor: attendance.isSubmitted ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: attendance.isSubmitted ? '0 4px 10px rgba(153,27,27,0.2)' : 'none' }}
-                      >
-                        {attendance.isSubmitted ? <>Buka <ChevronRight size={14} /></> : <><Lock size={12} /> Terkunci</>}
-                      </button>
-                    </div>
-
-                    {/* Closing Lobi */}
-                    <div style={{ backgroundColor: '#fff5f5', padding: '18px', borderRadius: '18px', border: '1px solid #fed7d7', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.2s' }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                          <span style={{ fontSize: '10px', fontWeight: 900, color: '#991b1b', backgroundColor: '#fee2e2', padding: '3px 8px', borderRadius: '6px' }}>SOP-LOBI-002</span>
-                          {isFormSubmittedToday('closing_lobi') && (
-                            <span style={{ fontSize: '10px', fontWeight: 900, backgroundColor: '#d1fae5', color: '#065f46', padding: '3px 10px', borderRadius: '999px' }}>✓ Sudah Diinput</span>
-                          )}
-                        </div>
-                        <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 900, color: '#450a0a' }}>Closing Lobi, Bar & Area Umum</h4>
-                      </div>
-                      <button
-                        onClick={() => {
-                          if (!attendance.isSubmitted) {
-                            alert("Tim FOH WAJIB mengisi dan menyimpan Daftar Kehadiran Karyawan terlebih dahulu di beranda!");
-                            return;
-                          }
-                          setActiveTab('closing_lobi');
-                        }}
-                        style={{ backgroundColor: attendance.isSubmitted ? '#991b1b' : '#cbd5e1', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '12px', fontSize: '12px', fontWeight: 900, cursor: attendance.isSubmitted ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: attendance.isSubmitted ? '0 4px 10px rgba(153,27,27,0.2)' : 'none' }}
-                      >
-                        {attendance.isSubmitted ? <>Buka <ChevronRight size={14} /></> : <><Lock size={12} /> Terkunci</>}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* BOH CARD */}
-              <div style={{ backgroundColor: '#fff', borderRadius: '28px', padding: '28px', border: '1px solid #fed7d7', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 10px 30px rgba(153,27,27,0.05)' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #fff5f5', paddingBottom: '16px', marginBottom: '20px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                      <div style={{ padding: '12px', backgroundColor: '#fff5f5', color: '#991b1b', borderRadius: '14px' }}>
-                        <UtensilsCrossed size={24} strokeWidth={2.5} />
-                      </div>
-                      <div>
-                        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: '#991b1b' }}>BOH (Back of House)</h3>
-                        <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#b91c1c', fontWeight: '500' }}>Area Kitchen, Preparation & Storage</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    {/* Opening Kitchen */}
-                    <div style={{ backgroundColor: '#fff5f5', padding: '18px', borderRadius: '18px', border: '1px solid #fed7d7', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.2s' }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                          <span style={{ fontSize: '10px', fontWeight: 900, color: '#991b1b', backgroundColor: '#fee2e2', padding: '3px 8px', borderRadius: '6px' }}>SOP-KTN-001</span>
-                          {isFormSubmittedToday('opening_kitchen') && (
-                            <span style={{ fontSize: '10px', fontWeight: 900, backgroundColor: '#d1fae5', color: '#065f46', padding: '3px 10px', borderRadius: '999px' }}>✓ Sudah Diinput</span>
-                          )}
-                        </div>
-                        <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 900, color: '#450a0a' }}>Opening Kitchen</h4>
-                      </div>
-                      <button
-                        onClick={() => setActiveTab('opening_kitchen')}
-                        style={{ backgroundColor: '#991b1b', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '12px', fontSize: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 4px 10px rgba(153,27,27,0.2)' }}
-                      >
-                        Buka <ChevronRight size={14} />
-                      </button>
-                    </div>
-
-                    {/* Closing Kitchen */}
-                    <div style={{ backgroundColor: '#fff5f5', padding: '18px', borderRadius: '18px', border: '1px solid #fed7d7', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.2s' }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                          <span style={{ fontSize: '10px', fontWeight: 900, color: '#991b1b', backgroundColor: '#fee2e2', padding: '3px 8px', borderRadius: '6px' }}>SOP-KTN-002</span>
-                          {isFormSubmittedToday('closing_kitchen') && (
-                            <span style={{ fontSize: '10px', fontWeight: 900, backgroundColor: '#d1fae5', color: '#065f46', padding: '3px 10px', borderRadius: '999px' }}>✓ Sudah Diinput</span>
-                          )}
-                        </div>
-                        <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 900, color: '#450a0a' }}>Closing Kitchen</h4>
-                      </div>
-                      <button
-                        onClick={() => setActiveTab('closing_kitchen')}
-                        style={{ backgroundColor: '#991b1b', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '12px', fontSize: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 4px 10px rgba(153,27,27,0.2)' }}
-                      >
-                        Buka <ChevronRight size={14} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
-            {/* RINGKASAN LAPORAN HARI INI DI BERANDA */}
-            <div style={{ backgroundColor: '#fff', borderRadius: '28px', padding: '28px', border: '1px solid #fed7d7', boxShadow: '0 10px 30px rgba(153,27,27,0.05)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #fff5f5', paddingBottom: '16px', marginBottom: '20px' }}>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: '#991b1b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <ClipboardCheck size={20} /> Ringkasan Hasil Input Hari Ini ({todayDateStr})
-                </h3>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    onClick={() => setActiveTab('history')}
-                    style={{ backgroundColor: '#fff5f5', border: '1px solid #feb2b2', color: '#991b1b', fontSize: '12px', fontWeight: 900, padding: '8px 16px', borderRadius: '12px', cursor: 'pointer' }}
-                  >
-                    Lihat Semua Arsip →
-                  </button>
-                </div>
-              </div>
-
+            <div className="bg-slate-800/90 border border-slate-700 p-6 rounded-3xl shadow-lg">
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-300 mb-4 flex items-center gap-2">
+                <Calendar size={18} className="text-emerald-400" /> Ringkasan Laporan Hari Ini ({todayDateStr})
+              </h3>
               {todayReports.length === 0 ? (
-                <div style={{ backgroundColor: '#fff5f5', borderRadius: '18px', padding: '28px', textAlign: 'center', border: '1px dashed #feb2b2' }}>
-                  <p style={{ margin: 0, color: '#b91c1c', fontSize: '13px', fontWeight: 'bold' }}>Belum ada laporan checklist yang diinput untuk hari ini.</p>
+                <div className="text-center py-8 text-slate-500 text-xs italic bg-slate-900/50 rounded-2xl border border-dashed border-slate-800">
+                  Belum ada laporan checklist yang diinput hari ini.
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  {todayReports.map(rep => (
-                    <div key={rep.id} style={{ backgroundColor: '#fff5f5', border: '1px solid #fed7d7', borderRadius: '18px', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px' }}>
+                <div className="space-y-3">
+                  {todayReports.map((rep, idx) => (
+                    <div key={idx} className="bg-slate-900/80 border border-slate-700/70 p-4 rounded-2xl flex items-center justify-between text-xs">
                       <div>
-                        <div style={{ display: 'flex', gap: '8px', marginBottom: '6px' }}>
-                          <span style={{ fontSize: '10px', fontWeight: 900, backgroundColor: '#fee2e2', color: '#991b1b', padding: '3px 8px', borderRadius: '6px' }}>{rep.document_no}</span>
-                          <span style={{ fontSize: '11px', color: '#b91c1c', fontWeight: 'bold' }}>{rep.timestamp}</span>
-                        </div>
-                        <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 900, color: '#450a0a' }}>{rep.form_title}</h4>
-                        <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#991b1b' }}>Petugas: <strong>{rep.headers?.diisiOleh}</strong></p>
+                        <strong className="text-white block mb-1 text-sm">{rep.formTitle}</strong>
+                        <span className="text-slate-400">PIC: <strong className="text-slate-200">{rep.headers?.diisiOleh}</strong></span>
                       </div>
-                      <button
-                        onClick={() => setSelectedReport(rep)}
-                        style={{ backgroundColor: '#991b1b', color: '#fff', border: 'none', padding: '9px 18px', borderRadius: '12px', fontSize: '12px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 10px rgba(153,27,27,0.2)' }}
-                      >
-                        Detail & Foto
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <span className="bg-emerald-500/20 text-emerald-300 text-[11px] font-bold px-3 py-1 rounded-xl border border-emerald-500/30">
+                          ✓ Selesai
+                        </span>
+                        <button 
+                          onClick={() => setSelectedReport(rep)}
+                          className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 px-3.5 py-2 rounded-xl font-bold transition-all"
+                        >
+                          Detail
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1119,431 +791,567 @@ export default function App() {
           </div>
         )}
 
-        {/* ==================== FORM CHECKLIST AKTIF ==================== */}
-        {activeTab !== 'home' && activeTab !== 'history' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div style={{ backgroundColor: '#fff', borderRadius: '24px', padding: '28px', border: '1px solid #fed7d7', boxShadow: '0 10px 30px rgba(153,27,27,0.05)' }}>
-              <h2 style={{ margin: '0 0 20px 0', fontSize: '17px', fontWeight: 900, color: '#991b1b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                {activeTab === 'opening_lobi' && 'CHECKLIST OPENING — LOBI, BAR & AREA UMUM'}
-                {activeTab === 'closing_lobi' && 'CHECKLIST CLOSING — LOBI, BAR & AREA UMUM'}
-                {activeTab === 'opening_kitchen' && 'CHECKLIST OPENING KITCHEN'}
-                {activeTab === 'closing_kitchen' && 'CHECKLIST CLOSING KITCHEN'}
-              </h2>
+        {/* 2. FOH (TERKONTROL OLEH ABSENSI) */}
+        {activeTab === 'foh' && (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-amber-950 to-slate-900 p-6 rounded-3xl border border-amber-900/40 shadow-xl flex items-center justify-between">
+              <div>
+                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full inline-block mb-2">
+                  Front of House Control (Terkunci jika belum absen)
+                </span>
+                <h2 className="text-lg sm:text-xl font-black text-white m-0">Form Checklist FOH (Lobi, Bar & Area Umum)</h2>
+              </div>
+              <Building2 size={36} className="text-amber-400 opacity-80" />
+            </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', backgroundColor: '#fff5f5', padding: '18px', borderRadius: '18px', border: '1px solid #fed7d7', marginBottom: '20px' }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[
+                { key: 'opening_lobi', title: 'Opening FOH (Lobi & Bar)', desc: 'Pemeriksaan kesiapan area publik sebelum operasional buka', icon: <Building2 className="text-amber-400" size={24} /> },
+                { key: 'closing_lobi', title: 'Closing FOH (Lobi & Bar)', desc: 'Pemberkasan malam, kasir & pengamanan area publik', icon: <Building2 className="text-orange-400" size={24} /> }
+              ].map(item => {
+                const isSubmitted = historyReports.some(r => r.formType === item.key && r.headers?.tanggal === todayDateStr);
+                return (
+                  <div 
+                    key={item.key}
+                    onClick={() => {
+                      if (!attendance.isSubmitted) {
+                        alert("Form FOH terkunci! Harap isi dan simpan Daftar Kehadiran Karyawan terlebih dahulu di Dashboard Utama.");
+                        return;
+                      }
+                      setActiveTab(item.key);
+                    }}
+                    className={`bg-slate-800/90 border border-slate-700 hover:border-amber-500/50 p-6 rounded-3xl shadow-lg cursor-pointer transition-all group flex flex-col justify-between ${!attendance.isSubmitted ? 'opacity-60' : ''}`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="p-3 rounded-2xl bg-slate-900 border border-slate-700">
+                          {item.icon}
+                        </div>
+                        {isSubmitted && (
+                          <span className="bg-emerald-500/20 text-emerald-300 text-[11px] font-bold px-3 py-1 rounded-xl border border-emerald-500/30">
+                            Sudah Diinput
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-base font-black text-white group-hover:text-amber-400 transition-colors mb-1">{item.title}</h3>
+                      <p className="text-xs text-slate-400 mb-6">{item.desc}</p>
+                    </div>
+                    <div className="flex items-center justify-between text-xs font-bold text-amber-400">
+                      <span>{!attendance.isSubmitted ? 'Terkunci (Wajib Absen)' : 'Mulai Pemeriksaan'}</span>
+                      {!attendance.isSubmitted ? <Lock size={16} /> : <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 3. BOH (BEBAS DIAKSES TANPA SYARAT ABSENSI FOH) */}
+        {activeTab === 'boh' && (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-red-950 to-slate-900 p-6 rounded-3xl border border-red-900/40 shadow-xl flex items-center justify-between">
+              <div>
+                <span className="bg-red-500/20 text-red-300 border border-red-500/30 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full inline-block mb-2">
+                  Back of House Control (Akses Langsung)
+                </span>
+                <h2 className="text-lg sm:text-xl font-black text-white m-0">Form Checklist BOH (Kitchen & Dapur)</h2>
+              </div>
+              <UtensilsCrossed size={36} className="text-red-400 opacity-80" />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[
+                { key: 'opening_kitchen', title: 'Opening Kitchen (BOH)', desc: 'Pemeriksaan kesiapan dapur, kebersihan & suhu kulkas', icon: <UtensilsCrossed className="text-red-400" size={24} /> },
+                { key: 'closing_kitchen', title: 'Closing Kitchen (BOH)', desc: 'Pembersihan dapur malam, pencatatan waste & pengamanan gas', icon: <UtensilsCrossed className="text-rose-400" size={24} /> }
+              ].map(item => {
+                const isSubmitted = historyReports.some(r => r.formType === item.key && r.headers?.tanggal === todayDateStr);
+                return (
+                  <div 
+                    key={item.key}
+                    onClick={() => setActiveTab(item.key)}
+                    className="bg-slate-800/90 border border-slate-700 hover:border-red-500/50 p-6 rounded-3xl shadow-lg cursor-pointer transition-all group flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="p-3 rounded-2xl bg-slate-900 border border-slate-700">
+                          {item.icon}
+                        </div>
+                        {isSubmitted && (
+                          <span className="bg-emerald-500/20 text-emerald-300 text-[11px] font-bold px-3 py-1 rounded-xl border border-emerald-500/30">
+                            Sudah Diinput
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-base font-black text-white group-hover:text-red-400 transition-colors mb-1">{item.title}</h3>
+                      <p className="text-xs text-slate-400 mb-6">{item.desc}</p>
+                    </div>
+                    <div className="flex items-center justify-between text-xs font-bold text-red-400">
+                      <span>Mulai Pemeriksaan</span>
+                      <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 4. FORM CHECKLIST AKTIF */}
+        {['opening_lobi', 'closing_lobi', 'opening_kitchen', 'closing_kitchen'].includes(activeTab) && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between bg-slate-800/80 p-4 rounded-2xl border border-slate-700">
+              <button 
+                onClick={() => setActiveTab(activeTab.includes('lobi') ? 'foh' : 'boh')}
+                className="bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-all"
+              >
+                ← Kembali ke Menu
+              </button>
+              <span className="text-xs font-black uppercase text-red-400 bg-red-500/10 px-3.5 py-1.5 rounded-xl border border-red-500/20">
+                {getFormTitle(activeTab)}
+              </span>
+            </div>
+
+            <div className="bg-slate-800/90 border border-slate-700 p-6 rounded-3xl shadow-xl space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-900/80 p-4 rounded-2xl border border-slate-700/70">
                 <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: '#991b1b', marginBottom: '6px', textTransform: 'uppercase' }}>Tanggal</label>
-                  <input
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Tanggal:</label>
+                  <input 
                     type="date"
                     value={headers.tanggal}
                     onChange={(e) => setHeaders({ ...headers, tanggal: e.target.value })}
-                    style={{ width: '100%', backgroundColor: '#fff', border: '1px solid #feb2b2', borderRadius: '10px', padding: '10px', fontSize: '13px', fontWeight: 'bold', outline: 'none' }}
+                    className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-red-600"
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: '#991b1b', marginBottom: '6px', textTransform: 'uppercase' }}>Diisi Oleh (Petugas) *</label>
-                  <input
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Diisi Oleh (Petugas):</label>
+                  <input 
                     type="text"
-                    placeholder="Nama petugas..."
+                    placeholder="Nama lengkap petugas..."
                     value={headers.diisiOleh}
                     onChange={(e) => setHeaders({ ...headers, diisiOleh: e.target.value })}
-                    style={{ width: '100%', backgroundColor: '#fff', border: '1px solid #feb2b2', borderRadius: '10px', padding: '10px', fontSize: '13px', fontWeight: 'bold', outline: 'none' }}
+                    className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-red-600"
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: '#991b1b', marginBottom: '6px', textTransform: 'uppercase' }}>Diperiksa Oleh (Manager/PIC)</label>
-                  <input
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Diperiksa Oleh (Manager/PIC):</label>
+                  <input 
                     type="text"
-                    placeholder="Nama PIC..."
+                    placeholder="Nama pemeriksa..."
                     value={headers.diperiksaOleh}
                     onChange={(e) => setHeaders({ ...headers, diperiksaOleh: e.target.value })}
-                    style={{ width: '100%', backgroundColor: '#fff', border: '1px solid #feb2b2', borderRadius: '10px', padding: '10px', fontSize: '13px', fontWeight: 'bold', outline: 'none' }}
+                    className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-red-600"
                   />
                 </div>
               </div>
 
-              {/* PROGRESS BAR */}
-              <div style={{ backgroundColor: '#991b1b', color: '#fff', padding: '16px 20px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 4px 15px rgba(153,27,27,0.2)' }}>
-                <div style={{ display: 'flex', gap: '20px', fontSize: '13px', fontWeight: 'bold' }}>
-                  <span>Total: <strong style={{ color: '#fef08a' }}>{getFormStats(activeTab).total}</strong></span>
-                  <span>OK: <strong style={{ color: '#86efac' }}>{getFormStats(activeTab).ok}</strong></span>
-                  <span>Tidak: <strong style={{ color: '#fca5a5' }}>{getFormStats(activeTab).notOk}</strong></span>
-                </div>
-                <div style={{ fontSize: '13px', fontWeight: 900, color: '#fef08a' }}>
-                  Progress: {getFormStats(activeTab).progress}%
-                </div>
-              </div>
-            </div>
+              <div className="space-y-6">
+                {(() => {
+                  const qList = questions[activeTab] || [];
+                  const categories = formCategories[activeTab] || [...new Set(qList.map(q => q.category))];
 
-            {/* DAFTAR PERTANYAAN DIKELOMPOKKAN BERDASARKAN KATEGORI */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              {(() => {
-                const currentCatList = (questions[activeTab] || []).filter(q => q.isActive !== false);
-                
-                const grouped = currentCatList.reduce((acc, q) => {
-                  const cat = q.category || 'Umum';
-                  if (!acc[cat]) acc[cat] = [];
-                  acc[cat].push(q);
-                  return acc;
-                }, {});
+                  return categories.map(catName => {
+                    const catQuestions = qList.filter(q => q.category === catName);
+                    if (catQuestions.length === 0) return null;
 
-                return Object.entries(grouped).map(([categoryName, items]) => (
-                  <div key={categoryName} style={{ backgroundColor: '#fff', borderRadius: '20px', border: '1px solid #fed7d7', overflow: 'hidden', boxShadow: '0 4px 15px rgba(153,27,27,0.03)' }}>
-                    
-                    {/* SEKAT KATEGORI */}
-                    <div style={{ backgroundColor: '#991b1b', color: '#fef08a', padding: '12px 20px', fontSize: '13px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span>📍 Area / Kategori: {categoryName}</span>
-                      <span style={{ fontSize: '11px', color: '#fff', fontWeight: 'bold' }}>{items.length} Item</span>
-                    </div>
+                    return (
+                      <div key={catName} className="border border-slate-700 rounded-3xl overflow-hidden shadow-sm bg-slate-900/60">
+                        <div className="bg-slate-900 text-white px-5 py-3 text-xs font-black uppercase tracking-wider flex items-center justify-between border-b border-slate-800">
+                          <span>Area: {catName}</span>
+                          <span className="text-[10px] bg-slate-800 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700">{catQuestions.length} Item</span>
+                        </div>
 
-                    <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                      {items.map((q) => {
-                        const currentAns = checklistData[activeTab]?.[q.id] || {};
-                        const originalIndex = currentCatList.findIndex(item => item.id === q.id);
-                        const isNotOk = currentAns.status === 'NOT_OK';
-
-                        return (
-                          <div key={q.id} style={{ backgroundColor: '#fff5f5', borderRadius: '16px', padding: '16px', border: '1px solid #feb2b2', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '14px' }}>
-                              <div style={{ display: 'flex', gap: '12px' }}>
-                                <span style={{ width: '28px', height: '28px', backgroundColor: '#991b1b', borderRadius: '8px', fontSize: '12px', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0, boxShadow: '0 2px 5px rgba(153,27,27,0.2)' }}>
-                                  {originalIndex + 1}
-                                </span>
-                                <div>
-                                  <div style={{ display: 'flex', gap: '8px', marginBottom: '4px' }}>
-                                    <span style={{ fontSize: '10px', fontWeight: 800, backgroundColor: q.requirePhoto ? '#fef3c7' : '#fff', color: q.requirePhoto ? '#92400e' : '#991b1b', padding: '2px 8px', borderRadius: '6px', border: '1px solid #feb2b2', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                      {q.requirePhoto && <Camera size={11} />} {q.requirePhoto ? 'Wajib Foto' : 'Foto Opsional'}
-                                    </span>
-                                  </div>
-                                  <p style={{ margin: 0, fontSize: '13px', fontWeight: 800, color: '#450a0a', lineHeight: '1.4' }}>{q.text}</p>
+                        <div className="divide-y divide-slate-800/80">
+                          {catQuestions.map((q, qIdx) => {
+                            const ans = checklistData[q.id] || { status: 'OK', note: '', photo: '' };
+                            return (
+                              <div key={q.id} className="p-5 space-y-4 hover:bg-slate-800/40 transition-colors">
+                                <div className="flex items-start justify-between gap-3">
+                                  <span className="text-xs font-semibold text-slate-200 leading-relaxed">
+                                    <strong className="text-slate-500 mr-2">{qIdx + 1}.</strong> {q.text}
+                                    {q.requirePhoto && <span className="ml-2 text-[10px] bg-red-500/20 text-red-300 font-bold px-2 py-0.5 rounded-md border border-red-500/30">Wajib Foto</span>}
+                                  </span>
                                 </div>
-                              </div>
 
-                              <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                                <button
-                                  type="button"
-                                  onClick={() => handleStatusChange(activeTab, q.id, 'OK')}
-                                  style={{ padding: '7px 14px', borderRadius: '10px', fontSize: '12px', fontWeight: 900, border: '1px solid', backgroundColor: currentAns.status === 'OK' ? '#059669' : '#fff', color: currentAns.status === 'OK' ? '#fff' : '#991b1b', borderColor: currentAns.status === 'OK' ? '#059669' : '#feb2b2', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: currentAns.status === 'OK' ? '0 2px 5px rgba(5,150,105,0.2)' : 'none' }}
-                                >
-                                  <Check size={14} strokeWidth={3} /> OK
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleStatusChange(activeTab, q.id, 'NOT_OK')}
-                                  style={{ padding: '7px 14px', borderRadius: '10px', fontSize: '12px', fontWeight: 900, border: '1px solid', backgroundColor: currentAns.status === 'NOT_OK' ? '#dc2626' : '#fff', color: currentAns.status === 'NOT_OK' ? '#fff' : '#991b1b', borderColor: currentAns.status === 'NOT_OK' ? '#dc2626' : '#feb2b2', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: currentAns.status === 'NOT_OK' ? '0 2px 5px rgba(220,38,38,0.2)' : 'none' }}
-                                >
-                                  <X size={14} strokeWidth={3} /> Tidak
-                                </button>
-                              </div>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: q.requirePhoto ? '1fr auto' : '1fr', gap: '12px', paddingTop: '10px', borderTop: '1px solid #feb2b2' }}>
-                              <input
-                                type="text"
-                                placeholder={isNotOk ? "⚠️ Catatan / Tindak Lanjut (WAJIB DIISI)..." : "Catatan tambahan (opsional)..."}
-                                value={currentAns.note || ''}
-                                onChange={(e) => handleItemNoteChange(activeTab, q.id, e.target.value)}
-                                style={{ backgroundColor: '#fff', border: isNotOk && !currentAns.note ? '2px solid #dc2626' : '1px solid #feb2b2', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', outline: 'none' }}
-                              />
-
-                              {q.requirePhoto && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                  <label style={{ backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d', padding: '10px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <Camera size={14} /> {currentAns.photo ? 'Ganti Foto' : 'Ambil Foto'}
-                                    <input
-                                      type="file"
-                                      accept="image/*"
-                                      capture="environment"
-                                      onChange={(e) => handlePhotoUpload(activeTab, q.id, e.target.files[0])}
-                                      style={{ display: 'none' }}
-                                    />
+                                <div className="flex items-center gap-4">
+                                  <label className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold cursor-pointer transition-all ${ans.status === 'OK' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-sm' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`}>
+                                    <input 
+                                      type="radio" 
+                                      name={`status_${q.id}`} 
+                                      checked={ans.status === 'OK'}
+                                      onChange={() => handleAnswerChange(q.id, 'status', 'OK')}
+                                      className="accent-emerald-500"
+                                    /> OK
                                   </label>
-                                  {currentAns.photo && (
-                                    <img src={currentAns.photo} alt="Bukti" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '10px', border: '1px solid #feb2b2' }} />
-                                  )}
+                                  <label className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold cursor-pointer transition-all ${ans.status === 'Tidak' ? 'bg-rose-500/20 border-rose-500 text-rose-300 shadow-sm' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`}>
+                                    <input 
+                                      type="radio" 
+                                      name={`status_${q.id}`} 
+                                      checked={ans.status === 'Tidak'}
+                                      onChange={() => handleAnswerChange(q.id, 'status', 'Tidak')}
+                                      className="accent-rose-500"
+                                    /> Tidak (Masalah)
+                                  </label>
                                 </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ));
-              })()}
-            </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '12px' }}>
-              <button
-                type="button"
-                disabled={isSubmitting}
-                onClick={() => {
-                  const docNo = activeTab.includes('lobi') ? 'SOP-LOBI-001' : 'SOP-KTN-001';
-                  const title = activeTab === 'opening_lobi' ? 'Opening Lobi, Bar & Area Umum' :
-                                activeTab === 'closing_lobi' ? 'Closing Lobi, Bar & Area Umum' :
-                                activeTab === 'opening_kitchen' ? 'Opening Kitchen' : 'Closing Kitchen';
-                  handleSubmitReport(activeTab, title, docNo);
-                }}
-                style={{ backgroundColor: '#991b1b', color: '#fff', border: 'none', padding: '16px 32px', borderRadius: '14px', fontWeight: 900, fontSize: '14px', cursor: 'pointer', boxShadow: '0 6px 20px rgba(153,27,27,0.3)', display: 'flex', alignItems: 'center', gap: '8px' }}
-              >
-                <Cloud size={18} /> {isSubmitting ? 'Menyimpan ke Cloud...' : 'Simpan & Arsipkan ke Cloud Firebase'}
-              </button>
-            </div>
-          </div>
-        )}
+                                {ans.status === 'Tidak' && (
+                                  <div className="pt-1">
+                                    <input 
+                                      type="text"
+                                      placeholder="Catatan Kendala / Tindak Lanjut (Wajib diisi)..."
+                                      value={ans.note || ''}
+                                      onChange={(e) => handleAnswerChange(q.id, 'note', e.target.value)}
+                                      className="w-full bg-rose-950/30 border border-rose-500/50 rounded-xl px-4 py-2.5 text-xs font-medium text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                                    />
+                                  </div>
+                                )}
 
-        {/* ==================== TAB RIWAYAT ==================== */}
-        {activeTab === 'history' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ backgroundColor: '#fff', borderRadius: '24px', padding: '28px', border: '1px solid #fed7d7', boxShadow: '0 10px 30px rgba(153,27,27,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 900, color: '#991b1b' }}>Arsip Laporan & Foto Bukti Cloud</h2>
-                <p style={{ margin: '6px 0 0 0', fontSize: '13px', color: '#b91c1c' }}>Data disinkronisasi live dari Cloud Database ke seluruh perangkat.</p>
-              </div>
-            </div>
+                                {q.requirePhoto && (
+                                  <div className="pt-1 flex items-center gap-3">
+                                    <label className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-2 border border-slate-700 shadow-sm active:scale-95 transition-transform">
+                                      <Camera size={16} className="text-red-400" />
+                                      {ans.photo ? 'Ganti Foto' : 'Ambil Foto Bukti'}
+                                      <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        capture="environment"
+                                        onChange={(e) => handlePhotoCapture(q.id, e)}
+                                        className="hidden"
+                                      />
+                                    </label>
 
-            {historyReports.length === 0 ? (
-              <div style={{ backgroundColor: '#fff', borderRadius: '24px', padding: '48px', textAlign: 'center', border: '1px solid #fed7d7', color: '#b91c1c', fontSize: '14px', fontWeight: 'bold' }}>
-                Belum ada laporan SOP tersimpan di Cloud Database.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {historyReports.map(rep => (
-                  <div key={rep.id || rep.firestore_id} style={{ backgroundColor: '#fff', borderRadius: '20px', padding: '20px', border: '1px solid #fed7d7', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
-                    <div>
-                      <div style={{ display: 'flex', gap: '8px', marginBottom: '6px' }}>
-                        <span style={{ fontSize: '10px', fontWeight: 900, backgroundColor: '#fee2e2', color: '#991b1b', padding: '3px 8px', borderRadius: '6px' }}>{rep.document_no}</span>
-                        <span style={{ fontSize: '11px', color: '#b91c1c', fontWeight: 'bold' }}>{rep.timestamp}</span>
+                                    {ans.photo && (
+                                      <div className="flex items-center gap-2.5">
+                                        <img src={ans.photo} alt="Bukti" className="w-11 h-11 object-cover rounded-xl border border-slate-700 shadow-sm" />
+                                        <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
+                                          <Check size={14} /> Terlampir
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 900, color: '#450a0a' }}>{rep.form_title}</h3>
-                      <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#991b1b' }}>Petugas: <strong>{rep.headers?.diisiOleh}</strong> | Tanggal: <strong>{rep.headers?.tanggal}</strong></p>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <button
-                        onClick={() => setSelectedReport(rep)}
-                        style={{ backgroundColor: '#991b1b', color: '#fff', border: 'none', padding: '9px 18px', borderRadius: '12px', fontSize: '12px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 2px 5px rgba(153,27,27,0.2)' }}
-                      >
-                        Lihat Detail & Foto
-                      </button>
-                      {isAdminLoggedIn && (
-                        <button
-                          onClick={() => handleDeleteHistory(rep.firestore_id)}
-                          style={{ backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', padding: '9px 14px', borderRadius: '12px', fontSize: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                        >
-                          <Trash2 size={14} /> Hapus
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                    );
+                  });
+                })()}
               </div>
-            )}
+
+              <div className="pt-4">
+                <button 
+                  type="button"
+                  onClick={handleSubmitChecklistForm}
+                  disabled={isSubmitting}
+                  className="w-full bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-700 hover:to-rose-800 text-white font-black py-4 rounded-2xl text-sm shadow-xl shadow-red-600/30 transition-transform active:scale-98 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <ClipboardCheck size={18} /> {isSubmitting ? 'Menyimpan ke Cloud...' : 'Simpan & Arsipkan ke Firebase Cloud'}
+                </button>
+              </div>
+
+            </div>
           </div>
         )}
 
-      </main>
+        {/* 5. ARSIP CLOUD */}
+        {activeTab === 'history' && (
+          <div className="space-y-6">
+            <div className="bg-slate-800/90 border border-slate-700 p-6 rounded-3xl shadow-xl space-y-4">
+              <h2 className="text-base font-black text-white flex items-center gap-2">
+                <FolderArchive size={22} className="text-red-500" /> Arsip Laporan Cloud (Multi-Device)
+              </h2>
+              <p className="text-xs text-slate-400">Semua laporan dari seluruh perangkat tersimpan secara real-time di server cloud.</p>
 
-      {/* MODAL KELOLA PERTANYAAN */}
-      {showQuestionEditorModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 999, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ backgroundColor: '#fff', borderRadius: '28px', maxWidth: '680px', width: '100%', maxHeight: '85vh', overflowY: 'auto', padding: '28px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #fff5f5', paddingBottom: '16px', marginBottom: '20px' }}>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: '#991b1b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Settings size={20} /> Kelola Area & Pertanyaan SOP
-              </h3>
-              <button onClick={() => setShowQuestionEditorModal(false)} style={{ border: 'none', background: '#fff5f5', color: '#991b1b', width: '32px', height: '32px', borderRadius: '50%', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button>
+              {historyReports.length === 0 ? (
+                <div className="text-center py-12 text-slate-500 text-xs italic bg-slate-900/50 rounded-2xl border border-dashed border-slate-800">
+                  Belum ada laporan tersimpan di database cloud.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {historyReports.map((rep, idx) => (
+                    <div key={rep.firestore_id || idx} className="bg-slate-900/80 border border-slate-700/80 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2.5 mb-1.5">
+                          <span className="text-xs font-black text-red-300 bg-red-500/20 px-3 py-1 rounded-xl border border-red-500/30">
+                            {rep.formTitle}
+                          </span>
+                          <span className="text-[11px] text-slate-400">{rep.timestamp_readable}</span>
+                        </div>
+                        <p className="text-xs text-slate-300 m-0">
+                          Petugas: <strong className="text-white">{rep.headers?.diisiOleh}</strong> | Pemeriksa: <strong className="text-white">{rep.headers?.diperiksaOleh}</strong>
+                        </p>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => setSelectedReport(rep)}
+                          className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow transition-transform active:scale-95"
+                        >
+                          Lihat Detail
+                        </button>
+
+                        {isAdminLoggedIn && (
+                          <button 
+                            onClick={() => handleDeleteReportFromCloud(rep.firestore_id)}
+                            className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold p-2.5 rounded-xl border border-rose-500/30 transition-transform active:scale-95"
+                            title="Hapus dari database cloud"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 6. PANEL ADMIN */}
+        {activeTab === 'admin_panel' && isAdminLoggedIn && (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-slate-900 via-red-950 to-slate-900 p-6 rounded-3xl border border-red-900/40 shadow-xl flex items-center justify-between">
+              <div>
+                <span className="bg-red-500/20 text-red-300 border border-red-500/30 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full inline-block mb-2">
+                  Admin Control Panel
+                </span>
+                <h2 className="text-lg sm:text-xl font-black text-white m-0">Pengaturan & Editor Pertanyaan SOP</h2>
+              </div>
+              <ShieldCheck size={36} className="text-red-400" />
             </div>
 
-            <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #fff5f5', paddingBottom: '16px', marginBottom: '20px', overflowX: 'auto' }}>
+            <div className="flex overflow-x-auto gap-2 pb-2">
               {[
-                { key: 'opening_lobi', label: 'Opening Lobi' },
-                { key: 'closing_lobi', label: 'Closing Lobi' },
-                { key: 'opening_kitchen', label: 'Opening Kitchen' },
-                { key: 'closing_kitchen', label: 'Closing Kitchen' }
+                { key: 'opening_lobi', label: 'FOH Opening' },
+                { key: 'closing_lobi', label: 'FOH Closing' },
+                { key: 'opening_kitchen', label: 'BOH Opening' },
+                { key: 'closing_kitchen', label: 'BOH Closing' }
               ].map(tab => (
                 <button
                   key={tab.key}
-                  onClick={() => {
-                    setEditingCategoryTab(tab.key);
-                    setEditingQuestionId(null);
-                    const cats = formCategories[tab.key] || ['General'];
-                    setQuestionForm({ text: '', category: cats[0], requirePhoto: false, requireNoteOnNotOk: true });
-                  }}
-                  style={{ backgroundColor: editingCategoryTab === tab.key ? '#fef08a' : '#fff5f5', color: editingCategoryTab === tab.key ? '#7f1d1d' : '#991b1b', border: 'none', padding: '8px 14px', borderRadius: '10px', fontSize: '12px', fontWeight: 900, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  onClick={() => { setSelectedEditorTab(tab.key); setEditingQuestionId(null); setNewQText(''); }}
+                  className={`px-4 py-2.5 rounded-2xl text-xs font-bold whitespace-nowrap transition-all ${selectedEditorTab === tab.key ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/30' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'}`}
                 >
                   {tab.label}
                 </button>
               ))}
             </div>
 
-            <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a', padding: '16px 20px', borderRadius: '16px', marginBottom: '20px' }}>
-              <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', fontWeight: 900, color: '#92400e' }}>➕ Tambah Area / Kategori Baru untuk Form Ini</h4>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <input
-                  type="text"
-                  placeholder="Nama area baru (contoh: Gudang Utama)..."
-                  value={newCategoryInput}
-                  onChange={(e) => setNewCategoryInput(e.target.value)}
-                  style={{ flex: 1, backgroundColor: '#fff', border: '1px solid #fcd34d', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', outline: 'none' }}
-                />
-                <button type="button" onClick={handleAddNewCategory} style={{ backgroundColor: '#d97706', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '10px', fontSize: '12px', fontWeight: 900, cursor: 'pointer' }}>
-                  Tambah Area
-                </button>
-              </div>
-            </div>
-
-            <div style={{ backgroundColor: '#fff5f5', padding: '20px', borderRadius: '18px', border: '1px solid #fed7d7', marginBottom: '20px' }}>
-              <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 900, color: '#450a0a' }}>{editingQuestionId ? '✏️ Edit Pertanyaan SOP' : '➕ Tambah Pertanyaan Baru'}</h4>
-              
-              <div style={{ marginBottom: '12px' }}>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: '#991b1b', marginBottom: '6px', textTransform: 'uppercase' }}>Pilih Area / Kategori:</label>
-                <select
-                  value={questionForm.category}
-                  onChange={(e) => setQuestionForm({ ...questionForm, category: e.target.value })}
-                  style={{ width: '100%', backgroundColor: '#fff', border: '1px solid #feb2b2', borderRadius: '10px', padding: '10px', fontSize: '13px', fontWeight: 'bold', outline: 'none' }}
-                >
-                  {(formCategories[editingCategoryTab] || ['General']).map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ marginBottom: '12px' }}>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: '#991b1b', marginBottom: '6px', textTransform: 'uppercase' }}>Teks Pertanyaan:</label>
-                <input
-                  type="text"
-                  placeholder="Tulis teks pertanyaan..."
-                  value={questionForm.text}
-                  onChange={(e) => setQuestionForm({ ...questionForm, text: e.target.value })}
-                  style={{ width: '100%', backgroundColor: '#fff', border: '1px solid #feb2b2', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', outline: 'none' }}
-                />
-              </div>
-
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={questionForm.requirePhoto} onChange={(e) => setQuestionForm({ ...questionForm, requirePhoto: e.target.checked })} /> Wajib Lampirkan Foto Bukti
-                </label>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                {editingQuestionId && (
-                  <button onClick={() => { setEditingQuestionId(null); const cats = formCategories[editingCategoryTab] || ['General']; setQuestionForm({ text: '', category: cats[0], requirePhoto: false, requireNoteOnNotOk: true }); }} style={{ backgroundColor: '#e2e8f0', border: 'none', padding: '8px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>Batal</button>
-                )}
-                <button onClick={handleSaveQuestionItem} style={{ backgroundColor: '#991b1b', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '10px', fontSize: '12px', fontWeight: 900, cursor: 'pointer' }}>
-                  {editingQuestionId ? 'Simpan Perubahan' : 'Tambah Pertanyaan'}
-                </button>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '250px', overflowY: 'auto' }}>
-              {(questions[editingCategoryTab] || []).map((q, qIndex) => (
-                <div key={q.id} style={{ backgroundColor: '#fff', border: '1px solid #fed7d7', borderRadius: '14px', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      <button onClick={() => handleMoveQuestion(qIndex, 'up')} disabled={qIndex === 0} style={{ border: 'none', background: '#fff5f5', color: '#991b1b', cursor: 'pointer', fontSize: '10px', borderRadius: '4px', padding: '2px 4px' }}><ArrowUp size={12} /></button>
-                      <button onClick={() => handleMoveQuestion(qIndex, 'down')} disabled={qIndex === (questions[editingCategoryTab] || []).length - 1} style={{ border: 'none', background: '#fff5f5', color: '#991b1b', cursor: 'pointer', fontSize: '10px', borderRadius: '4px', padding: '2px 4px' }}><ArrowDown size={12} /></button>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '10px', fontWeight: 900, backgroundColor: '#fee2e2', color: '#991b1b', padding: '2px 8px', borderRadius: '6px', marginRight: '8px' }}>{q.category}</span>
-                      <span style={{ fontSize: '13px', fontWeight: 800, color: '#450a0a' }}>{q.text}</span>
-                    </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="bg-slate-800/90 border border-slate-700 p-6 rounded-3xl shadow-xl space-y-4 lg:col-span-1">
+                <h3 className="text-sm font-black text-white flex items-center gap-2">
+                  <Edit3 size={18} className="text-amber-400" /> {editingQuestionId ? 'Edit Pertanyaan SOP' : 'Tambah Pertanyaan Baru'}
+                </h3>
+                
+                <form onSubmit={handleSaveQuestion} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">Pilih Kategori / Area:</label>
+                    <select
+                      value={newQCategory}
+                      onChange={(e) => setNewQCategory(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    >
+                      {(formCategories[selectedEditorTab] || []).map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
                   </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={() => handleStartEditQuestion(q)} style={{ backgroundColor: '#fee2e2', color: '#991b1b', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 900, cursor: 'pointer' }}>Edit</button>
-                    <button onClick={() => handleDeleteQuestion(q.id)} style={{ backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 900, cursor: 'pointer' }}>Hapus</button>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">Teks Pertanyaan / Checklist:</label>
+                    <textarea 
+                      rows={3}
+                      placeholder="Tuliskan poin SOP..."
+                      value={newQText}
+                      onChange={(e) => setNewQText(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      required
+                    />
                   </div>
+
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="checkbox"
+                      id="req_photo_chk"
+                      checked={newQRequirePhoto}
+                      onChange={(e) => setNewQRequirePhoto(e.target.checked)}
+                      className="w-4 h-4 accent-amber-500 rounded"
+                    />
+                    <label htmlFor="req_photo_chk" className="text-xs font-bold text-slate-300 cursor-pointer">Wajib Lampirkan Foto</label>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button 
+                      type="submit"
+                      className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-3 rounded-xl text-xs shadow transition-transform active:scale-98"
+                    >
+                      {editingQuestionId ? 'Simpan Perubahan' : 'Tambah ke SOP'}
+                    </button>
+                    {editingQuestionId && (
+                      <button 
+                        type="button"
+                        onClick={() => { setEditingQuestionId(null); setNewQText(''); }}
+                        className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-3 rounded-xl text-xs font-bold"
+                      >
+                        Batal
+                      </button>
+                    )}
+                  </div>
+                </form>
+
+                <div className="border-t border-slate-700 pt-4 mt-4 space-y-3">
+                  <h4 className="text-xs font-black text-slate-300 flex items-center gap-1.5">
+                    <Layers size={14} className="text-amber-400" /> Tambah Area / Kategori Baru
+                  </h4>
+                  <form onSubmit={handleAddCategory} className="flex gap-2">
+                    <input 
+                      type="text"
+                      placeholder="Nama Area (e.g. GUDANG)..."
+                      value={newCategoryInput}
+                      onChange={(e) => setNewCategoryInput(e.target.value)}
+                      className="flex-1 bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs"
+                    />
+                    <button type="submit" className="bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold px-3.5 py-2 rounded-xl">
+                      Tambah
+                    </button>
+                  </form>
                 </div>
-              ))}
+              </div>
+
+              <div className="bg-slate-800/90 border border-slate-700 p-6 rounded-3xl shadow-xl space-y-4 lg:col-span-2">
+                <h3 className="text-sm font-black text-white">Daftar Pertanyaan SOP ({selectedEditorTab})</h3>
+                
+                <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                  {(questions[selectedEditorTab] || []).map((q, qIdx) => (
+                    <div key={q.id} className="bg-slate-900/80 border border-slate-700/80 p-4 rounded-2xl flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-black uppercase bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded-md border border-amber-500/30">{q.category}</span>
+                          {q.requirePhoto && <span className="text-[10px] bg-red-500/20 text-red-300 px-2 py-0.5 rounded-md border border-red-500/30">Wajib Foto</span>}
+                        </div>
+                        <p className="text-xs font-medium text-slate-200 m-0">
+                          <strong className="text-slate-500 mr-1.5">{qIdx + 1}.</strong> {q.text}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button onClick={() => handleMoveQuestion(qIdx, 'up')} className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700" title="Geser Atas"><ArrowUp size={14} /></button>
+                        <button onClick={() => handleMoveQuestion(qIdx, 'down')} className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700" title="Geser Bawah"><ArrowDown size={14} /></button>
+                        <button onClick={() => { setEditingQuestionId(q.id); setNewQText(q.text); setNewQCategory(q.category); setNewQRequirePhoto(q.requirePhoto); }} className="p-1.5 bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 rounded-lg border border-sky-500/30" title="Edit"><Edit3 size={14} /></button>
+                        <button onClick={() => handleDeleteQuestion(q.id)} className="p-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 rounded-lg border border-rose-500/30" title="Hapus"><Trash2 size={14} /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </main>
+
+      {/* MODAL DETAIL LAPORAN */}
+      {selectedReport && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div>
+                <span className="text-[10px] font-black uppercase bg-red-500/20 text-red-300 px-3 py-1 rounded-xl border border-red-500/30">{selectedReport.formTitle}</span>
+                <h3 className="text-base font-black text-white mt-1.5">Detail Laporan SOP</h3>
+              </div>
+              <button onClick={() => setSelectedReport(null)} className="p-2 rounded-full hover:bg-slate-800 text-slate-400">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs bg-slate-800/80 p-4 rounded-2xl border border-slate-700">
+              <div><strong className="text-slate-400 block mb-0.5">Tanggal:</strong> {selectedReport.headers?.tanggal}</div>
+              <div><strong className="text-slate-400 block mb-0.5">Waktu Input:</strong> {selectedReport.timestamp_readable}</div>
+              <div><strong className="text-slate-400 block mb-0.5">Petugas:</strong> {selectedReport.headers?.diisiOleh}</div>
+              <div><strong className="text-slate-400 block mb-0.5">Pemeriksa:</strong> {selectedReport.headers?.diperiksaOleh}</div>
+            </div>
+
+            {selectedReport.attendance?.isSubmitted && (
+              <div className="text-xs bg-amber-950/40 p-4 rounded-2xl border border-amber-500/30 space-y-2">
+                <strong className="text-amber-300 block">Kehadiran Karyawan (FOH):</strong>
+                <div className="grid grid-cols-2 gap-2 text-slate-300">
+                  <div>• Hadir: <strong>{selectedReport.attendance.hadirCount} Orang</strong></div>
+                  <div>• Sakit: <strong>{selectedReport.attendance.sakitList?.filter(Boolean).length || 0} Orang</strong></div>
+                  <div>• Izin: <strong>{selectedReport.attendance.izinList?.filter(Boolean).length || 0} Orang</strong></div>
+                  <div>• Tanpa Keterangan: <strong>{selectedReport.attendance.alphaList?.filter(Boolean).length || 0} Orang</strong></div>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <h4 className="text-xs font-black uppercase text-slate-400 mb-2">Item Pemeriksaan:</h4>
+              <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                {Object.entries(selectedReport.checklistData || {}).map(([qId, ans], idx) => (
+                  <div key={idx} className="bg-slate-800/70 p-3.5 rounded-2xl border border-slate-700 text-xs flex items-start justify-between gap-3">
+                    <div>
+                      <span className="font-bold text-white block mb-1">Item #{idx + 1}</span>
+                      <span className={`inline-block font-bold px-2.5 py-0.5 rounded-lg text-[10px] mb-1 ${ans.status === 'OK' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'}`}>
+                        Status: {ans.status}
+                      </span>
+                      {ans.note && <p className="text-slate-300 m-0 mt-1">Catatan: {ans.note}</p>}
+                    </div>
+                    {ans.photo && (
+                      <a href={ans.photo} target="_blank" rel="noreferrer">
+                        <img src={ans.photo} alt="Bukti" className="w-14 h-14 object-cover rounded-xl border border-slate-700 shadow-sm" />
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button 
+                type="button"
+                onClick={() => setSelectedReport(null)}
+                className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3.5 rounded-2xl text-xs border border-slate-700"
+              >
+                Tutup Detail
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL PIN ADMIN */}
+      {/* MODAL PIN LOGIN ADMIN */}
       {showPinModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 999, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ backgroundColor: '#fff', borderRadius: '24px', maxWidth: '340px', width: '100%', padding: '28px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 900, color: '#991b1b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Lock size={18} /> Masukkan PIN Admin
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <h3 className="text-base font-black text-white flex items-center gap-2">
+              <Lock size={18} className="text-red-500" /> Masukkan PIN Admin
             </h3>
-            <input
+            <p className="text-xs text-slate-400">Masukkan PIN Admin untuk mengakses Panel Editor SOP & Penghapusan Arsip.</p>
+            <input 
               type="password"
               placeholder="PIN (Default: 1234)"
               value={adminPinInput}
               onChange={(e) => setAdminPinInput(e.target.value)}
-              style={{ width: '100%', backgroundColor: '#fff5f5', border: '1px solid #feb2b2', borderRadius: '12px', padding: '12px', fontSize: '15px', textAlign: 'center', fontWeight: 'bold', outline: 'none', marginBottom: '16px' }}
+              className="w-full bg-slate-800 border border-slate-700 text-white rounded-2xl px-4 py-3 text-sm font-bold text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-red-600"
+              autoFocus
             />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button onClick={() => setShowPinModal(false)} style={{ backgroundColor: '#e2e8f0', border: 'none', padding: '10px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>Batal</button>
-              <button onClick={handleVerifyAdminPin} style={{ backgroundColor: '#991b1b', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '10px', fontSize: '12px', fontWeight: 900, cursor: 'pointer' }}>Masuk</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL UBAH PIN */}
-      {showChangePinModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 999, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ backgroundColor: '#fff', borderRadius: '24px', maxWidth: '360px', width: '100%', padding: '28px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 900, color: '#991b1b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Key size={18} /> Ubah PIN Admin
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '18px' }}>
-              <input type="password" placeholder="PIN Lama" value={changePinForm.oldPin} onChange={(e) => setChangePinForm({ ...changePinForm, oldPin: e.target.value })} style={{ backgroundColor: '#fff5f5', border: '1px solid #feb2b2', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', outline: 'none' }} />
-              <input type="password" placeholder="PIN Baru (min 4 karakter)" value={changePinForm.newPin} onChange={(e) => setChangePinForm({ ...changePinForm, newPin: e.target.value })} style={{ backgroundColor: '#fff5f5', border: '1px solid #feb2b2', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', outline: 'none' }} />
-              <input type="password" placeholder="Konfirmasi PIN Baru" value={changePinForm.confirmPin} onChange={(e) => setChangePinForm({ ...changePinForm, confirmPin: e.target.value })} style={{ backgroundColor: '#fff5f5', border: '1px solid #feb2b2', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', outline: 'none' }} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button onClick={() => setShowChangePinModal(false)} style={{ backgroundColor: '#e2e8f0', border: 'none', padding: '10px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>Batal</button>
-              <button onClick={handleChangeAdminPin} style={{ backgroundColor: '#991b1b', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '10px', fontSize: '12px', fontWeight: 900, cursor: 'pointer' }}>Simpan</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL DETAIL LAPORAN */}
-      {selectedReport && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 999, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ backgroundColor: '#fff', borderRadius: '28px', maxWidth: '680px', width: '100%', maxHeight: '85vh', overflowY: 'auto', padding: '28px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #fff5f5', paddingBottom: '16px', marginBottom: '20px' }}>
-              <div>
-                <span style={{ fontSize: '10px', fontWeight: 900, backgroundColor: '#fee2e2', color: '#991b1b', padding: '3px 8px', borderRadius: '6px' }}>{selectedReport.document_no}</span>
-                <h3 style={{ margin: '6px 0 0 0', fontSize: '17px', fontWeight: 900, color: '#991b1b' }}>{selectedReport.form_title}</h3>
-              </div>
-              <button onClick={() => setSelectedReport(null)} style={{ border: 'none', background: '#fff5f5', color: '#991b1b', width: '32px', height: '32px', borderRadius: '50%', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', backgroundColor: '#fff5f5', padding: '14px', borderRadius: '16px', border: '1px solid #fed7d7', marginBottom: '20px', fontSize: '12px' }}>
-              <div><span style={{ color: '#b91c1c', display: 'block', fontWeight: 'bold' }}>Tanggal</span><strong>{selectedReport.headers?.tanggal}</strong></div>
-              <div><span style={{ color: '#b91c1c', display: 'block', fontWeight: 'bold' }}>Petugas</span><strong>{selectedReport.headers?.diisiOleh}</strong></div>
-              <div><span style={{ color: '#b91c1c', display: 'block', fontWeight: 'bold' }}>PIC</span><strong>{selectedReport.headers?.diperiksaOleh || '-'}</strong></div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '24px' }}>
-              {(selectedReport.items || []).map((item, idx) => (
-                <div key={idx} style={{ backgroundColor: '#fff5f5', border: '1px solid #fed7d7', borderRadius: '14px', padding: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', fontSize: '13px' }}>
-                  <div>
-                    <span style={{ fontSize: '10px', fontWeight: 900, backgroundColor: '#fee2e2', color: '#991b1b', padding: '2px 8px', borderRadius: '6px', marginRight: '8px' }}>{item.category}</span>
-                    <p style={{ margin: '4px 0 0 0', fontWeight: 800, color: '#450a0a' }}>{idx + 1}. {item.text}</p>
-                    {item.note && <p style={{ margin: '4px 0 0 0', color: '#b91c1c', fontSize: '12px', fontWeight: '500' }}>Catatan: {item.note}</p>}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-                    <span style={{ padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 900, backgroundColor: item.status === 'OK' ? '#d1fae5' : '#fee2e2', color: item.status === 'OK' ? '#065f46' : '#991b1b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      {item.status === 'OK' ? <><Check size={12} strokeWidth={3} /> OK</> : <><X size={12} strokeWidth={3} /> Tidak</>}
-                    </span>
-                    {item.photo && (
-                      <a href={item.photo} target="_blank" rel="noopener noreferrer">
-                        <img src={item.photo} alt="Bukti" style={{ width: '45px', height: '45px', objectFit: 'cover', borderRadius: '10px', border: '1px solid #feb2b2' }} />
-                      </a>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button onClick={() => setSelectedReport(null)} style={{ backgroundColor: '#991b1b', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '12px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 10px rgba(153,27,27,0.2)' }}>Tutup</button>
+            <div className="flex gap-2.5 pt-2">
+              <button 
+                type="button"
+                onClick={() => setShowPinModal(false)}
+                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-2xl text-xs border border-slate-700"
+              >
+                Batal
+              </button>
+              <button 
+                type="button"
+                onClick={handleVerifyAdminPin}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-2xl text-xs shadow-lg shadow-red-600/30"
+              >
+                Masuk
+              </button>
             </div>
           </div>
         </div>
