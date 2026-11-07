@@ -249,6 +249,15 @@ export default function App() {
       setIsSyncingCloud(false);
     });
 
+    const todayStr = new Date().toISOString().split('T')[0];
+    const unsubAttendance = onSnapshot(doc(db, "wss_system_master", `attendance_${todayStr}`), (docSnap) => {
+      if (docSnap.exists()) {
+        setAttendance(docSnap.data());
+      }
+    }, (error) => {
+      console.error("Error listening attendance:", error);
+    });
+
     const unsubMaster = onSnapshot(doc(db, "wss_system_master", "config"), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -268,6 +277,7 @@ export default function App() {
 
     return () => {
       unsubReports();
+      unsubAttendance();
       unsubMaster();
     };
   }, []);
@@ -384,13 +394,24 @@ export default function App() {
     }
   };
 
-  const handleSaveAttendance = () => {
+  const handleSaveAttendance = async () => {
     if (!attendance.hadirCount) {
       alert("Harap isi jumlah karyawan hadir!");
       return;
     }
-    setAttendance(prev => ({ ...prev, isSubmitted: true }));
-    showToast("Data kehadiran disimpan!");
+    const updatedAttendance = { ...attendance, isSubmitted: true, updatedAt: Date.now() };
+    setAttendance(updatedAttendance);
+
+    try {
+      if (db) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        await setDoc(doc(db, "wss_system_master", `attendance_${todayStr}`), updatedAttendance);
+      }
+      showToast("Data kehadiran berhasil disimpan ke Cloud!");
+    } catch (e) {
+      console.error("Gagal simpan absensi ke cloud:", e);
+      alert("Gagal menyimpan absensi ke server cloud.");
+    }
   };
 
   const handlePhotoCapture = (qId, e) => {
@@ -666,10 +687,19 @@ export default function App() {
                 <div className="bg-emerald-950/40 border border-emerald-500/30 p-5 rounded-2xl space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
-                      <CheckCircle2 size={18} /> Kehadiran Karyawan Telah Disimpan (Form FOH Terbuka)
+                      <CheckCircle2 size={18} /> Kehadiran Karyawan Telah Disimpan di Cloud (Form FOH Terbuka)
                     </div>
                     <button 
-                      onClick={() => setAttendance(prev => ({ ...prev, isSubmitted: false }))}
+                      onClick={async () => {
+                        const resetState = { ...attendance, isSubmitted: false };
+                        setAttendance(resetState);
+                        try {
+                          if (db) {
+                            const todayStr = new Date().toISOString().split('T')[0];
+                            await setDoc(doc(db, "wss_system_master", `attendance_${todayStr}`), resetState);
+                          }
+                        } catch (e) { console.error(e); }
+                      }}
                       className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3.5 py-2 rounded-xl border border-slate-600 transition-all"
                     >
                       Edit Absen
