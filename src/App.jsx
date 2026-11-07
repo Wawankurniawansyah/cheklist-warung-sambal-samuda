@@ -15,7 +15,7 @@ const FIREBASE_CONFIG = {
   apiKey: "AIzaSyCeAfwtro-qbH_ZcnMraFOXeu1kysm-Rm8",
   authDomain: "cheklist-warung-samuda.firebaseapp.com",
   projectId: "cheklist-warung-sambal-samuda",
-  storageBucket: "cheklist-warung-sambal-samuda.firebasestorage.app",
+  storageBucket: "cheklist-warung-samuda.firebasestorage.app",
   messagingSenderId: "190654796294",
   appId: "1:190654796294:web:c6e7c2999b8a2eb668e987",
   measurementId: "G-ECHVHC57L4"
@@ -210,7 +210,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Inject Tailwind CDN if missing
+    // Memastikan Tailwind CSS dimuat secara otomatis di browser/Netlify
     if (!document.getElementById('tailwind-cdn')) {
       const script = document.createElement('script');
       script.id = 'tailwind-cdn';
@@ -486,6 +486,14 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans pb-20 selection:bg-rose-600 selection:text-white">
       
+      {/* Memastikan Tailwind CSS dimuat melalui stylesheet langsung agar tidak hitam putih */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}} />
+
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white px-5 py-3 rounded-2xl shadow-2xl text-xs font-bold flex items-center gap-2 border border-slate-700 animate-bounce">
