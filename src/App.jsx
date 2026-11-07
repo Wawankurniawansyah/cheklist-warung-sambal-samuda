@@ -15,7 +15,7 @@ const FIREBASE_CONFIG = {
   apiKey: "AIzaSyCeAfwtro-qbH_ZcnMraFOXeu1kysm-Rm8",
   authDomain: "cheklist-warung-samuda.firebaseapp.com",
   projectId: "cheklist-warung-sambal-samuda",
-  storageBucket: "cheklist-warung-samuda.firebasestorage.app",
+  storageBucket: "cheklist-warung-sambal-samuda.firebasestorage.app",
   messagingSenderId: "190654796294",
   appId: "1:190654796294:web:c6e7c2999b8a2eb668e987",
   measurementId: "G-ECHVHC57L4"
@@ -210,7 +210,6 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Memastikan Tailwind CSS dimuat secara otomatis di browser/Netlify
     if (!document.getElementById('tailwind-cdn')) {
       const script = document.createElement('script');
       script.id = 'tailwind-cdn';
@@ -220,7 +219,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // Menyuntikkan style langsung ke document head agar tidak ada jeda 1 detik hitam putih
     if (!document.getElementById('instant-tailwind-style')) {
       const style = document.createElement('style');
       style.id = 'instant-tailwind-style';
@@ -501,7 +499,6 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans pb-20 selection:bg-rose-600 selection:text-white">
       
-      {/* Memastikan Tailwind CSS dimuat melalui stylesheet langsung agar tidak hitam putih */}
       <style dangerouslySetInnerHTML={{ __html: `
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
