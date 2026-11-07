@@ -210,6 +210,16 @@ export default function App() {
   };
 
   useEffect(() => {
+    // Inject Tailwind CDN if missing
+    if (!document.getElementById('tailwind-cdn')) {
+      const script = document.createElement('script');
+      script.id = 'tailwind-cdn';
+      script.src = 'https://cdn.tailwindcss.com';
+      document.head.appendChild(script);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!db) return;
     setIsSyncingCloud(true);
 
