@@ -220,6 +220,21 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Menyuntikkan style langsung ke document head agar tidak ada jeda 1 detik hitam putih
+    if (!document.getElementById('instant-tailwind-style')) {
+      const style = document.createElement('style');
+      style.id = 'instant-tailwind-style';
+      style.innerHTML = `
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; padding: 0; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `;
+      document.head.appendChild(style);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!db) return;
     setIsSyncingCloud(true);
 
@@ -568,6 +583,17 @@ export default function App() {
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
             
+            {/* TANGGAL & INFORMASI HARI INI */}
+            <div className="flex items-center justify-between bg-slate-800/90 border border-slate-700/80 px-5 py-3.5 rounded-2xl shadow-sm">
+              <div className="flex items-center gap-2.5">
+                <Calendar size={18} className="text-amber-400" />
+                <span className="text-xs font-bold text-slate-300">Tanggal Operasional Hari Ini:</span>
+              </div>
+              <span className="bg-slate-900 text-amber-300 text-xs font-black px-4 py-1.5 rounded-xl border border-amber-500/30">
+                {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              </span>
+            </div>
+
             <div className="bg-gradient-to-r from-red-950 via-slate-900 to-amber-950 p-6 sm:p-8 rounded-3xl border border-red-900/50 shadow-2xl relative overflow-hidden">
               <div className="absolute right-0 top-0 w-80 h-80 bg-red-600/10 rounded-full blur-3xl pointer-events-none"></div>
               <div className="relative z-10 max-w-2xl">
