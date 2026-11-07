@@ -1004,7 +1004,7 @@ export default function App() {
 
                         <div className="divide-y divide-slate-800/80">
                           {catQuestions.map((q, qIdx) => {
-                            const ans = checklistData[q.id] || { status: 'OK', note: '', photo: '' };
+                            const ans = checklistData[q.id] || { status: '', note: '', photo: '' };
                             return (
                               <div key={q.id} className="p-5 space-y-4 hover:bg-slate-800/40 transition-colors">
                                 <div className="flex items-start justify-between gap-3">
@@ -1015,7 +1015,7 @@ export default function App() {
                                 </div>
 
                                 <div className="flex items-center gap-4">
-                                  <label className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold cursor-pointer transition-all ${ans.status === 'OK' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-sm' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`}>
+                                  <label className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold cursor-pointer transition-all ${ans.status === 'OK' ? 'bg-slate-700 border-emerald-500 text-emerald-300 shadow-sm' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`}>
                                     <input 
                                       type="radio" 
                                       name={`status_${q.id}`} 
@@ -1024,7 +1024,7 @@ export default function App() {
                                       className="accent-emerald-500"
                                     /> OK
                                   </label>
-                                  <label className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold cursor-pointer transition-all ${ans.status === 'Tidak' ? 'bg-rose-500/20 border-rose-500 text-rose-300 shadow-sm' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`}>
+                                  <label className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold cursor-pointer transition-all ${ans.status === 'Tidak' ? 'bg-slate-700 border-rose-500 text-rose-300 shadow-sm' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`}>
                                     <input 
                                       type="radio" 
                                       name={`status_${q.id}`} 
