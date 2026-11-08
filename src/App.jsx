@@ -200,6 +200,7 @@ export default function App() {
   const [checklistData, setChecklistData] = useState({});
   const [historyReports, setHistoryReports] = useState([]);
   const [selectedReport, setSelectedReport] = useState(null);
+  const [previewImage, setPreviewImage] = useState(null); // State untuk modal pembesaran gambar
   const [toastMessage, setToastMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
@@ -1404,9 +1405,10 @@ export default function App() {
                         {ans.note && <p className="text-slate-300 m-0 mt-1">Catatan: {ans.note}</p>}
                       </div>
                       {ans.photo && (
-                        <a href={ans.photo} target="_blank" rel="noreferrer">
-                          <img src={ans.photo} alt="Bukti" className="w-14 h-14 object-cover rounded-xl border border-slate-700 shadow-sm" />
-                        </a>
+                        <div onClick={() => setPreviewImage(ans.photo)} className="cursor-pointer group relative">
+                          <img src={ans.photo} alt="Bukti" className="w-14 h-14 object-cover rounded-xl border border-slate-700 shadow-sm group-hover:opacity-85 transition-opacity" />
+                          <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 rounded-xl text-white text-[10px] font-bold transition-opacity">Zoom</span>
+                        </div>
                       )}
                     </div>
                   );
@@ -1423,6 +1425,22 @@ export default function App() {
                 Tutup Detail
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PREVIEW FOTO FULLSCREEN */}
+      {previewImage && (
+        <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setPreviewImage(null)}>
+          <div className="relative max-w-3xl w-full flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <button 
+              onClick={() => setPreviewImage(null)}
+              className="absolute -top-12 right-0 bg-slate-800 hover:bg-slate-700 text-white p-2.5 rounded-full border border-slate-700"
+            >
+              <X size={20} />
+            </button>
+            <img src={previewImage} alt="Preview Bukti Full" className="max-w-full max-h-[80vh] object-contain rounded-2xl border border-slate-700 shadow-2xl" />
+            <p className="text-xs text-slate-400 mt-3">Klik di luar gambar atau tombol tutup untuk keluar</p>
           </div>
         </div>
       )}
