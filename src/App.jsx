@@ -477,12 +477,25 @@ export default function App() {
 
     setIsSubmitting(true);
     try {
+      // Mapping checklistData agar menyimpan teks pertanyaan dan kategori secara eksplisit
+      const formattedChecklist = {};
+      Object.entries(checklistData).forEach(([qId, ans]) => {
+        const foundQ = currentQList.find(q => q.id === qId);
+        formattedChecklist[qId] = {
+          questionText: foundQ ? foundQ.text : qId,
+          category: foundQ ? foundQ.category : 'General',
+          status: ans.status,
+          note: ans.note || '',
+          photo: ans.photo || ''
+        };
+      });
+
       const reportPayload = {
         formType: activeTab,
         formTitle: getFormTitle(activeTab),
         headers,
         attendance: activeTab.includes('lobi') ? attendance : { isSubmitted: false },
-        checklistData,
+        checklistData: formattedChecklist,
         timestamp_readable: new Date().toLocaleString('id-ID'),
         timestamp_raw: Date.now(),
         dateStr: headers.tanggal
@@ -1364,15 +1377,16 @@ export default function App() {
               <h4 className="text-xs font-black uppercase text-slate-400 mb-2">Item Pemeriksaan:</h4>
               <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
                 {Object.entries(selectedReport.checklistData || {}).map(([qId, ans], idx) => {
-                  // Cari teks pertanyaan asli berdasarkan formType dan qId
-                  const formQuestions = questions[selectedReport.formType] || [];
-                  const foundQ = formQuestions.find(q => q.id === qId);
-                  const questionText = foundQ ? foundQ.text : `Item #${idx + 1}`;
+                  const displayQuestionText = ans.questionText || `Item #${idx + 1}`;
+                  const displayCategory = ans.category || 'General';
 
                   return (
                     <div key={idx} className="bg-slate-800/70 p-3.5 rounded-2xl border border-slate-700 text-xs flex items-start justify-between gap-3">
                       <div>
-                        <span className="font-bold text-white block mb-1">{idx + 1}. {questionText}</span>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">{displayCategory}</span>
+                        </div>
+                        <span className="font-bold text-white block mb-1">{idx + 1}. {displayQuestionText}</span>
                         <span className={`inline-block font-bold px-2.5 py-0.5 rounded-lg text-[10px] mb-1 ${ans.status === 'OK' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'}`}>
                           Status: {ans.status}
                         </span>
