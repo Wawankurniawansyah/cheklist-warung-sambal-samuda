@@ -21,7 +21,6 @@ const FIREBASE_CONFIG = {
   measurementId: "G-ECHVHC57L4"
 };
 
-// Inisialisasi Firebase Firestore
 let db = null;
 try {
   const app = initializeApp(FIREBASE_CONFIG);
@@ -30,7 +29,6 @@ try {
   console.error("Firebase Init Error:", e);
 }
 
-// Daftar Kategori / Area Default per Form
 const DEFAULT_FORM_CATEGORIES = {
   opening_lobi: ['Lobi', 'Bar', 'Parkir', 'Taman', 'Toilet', 'Musholah'],
   closing_lobi: ['Lobi', 'Bar', 'Parkir', 'Taman', 'Toilet', 'Musholah'],
@@ -38,7 +36,6 @@ const DEFAULT_FORM_CATEGORIES = {
   closing_kitchen: ['Operasional', 'Bahan Baku', 'Preparation', 'Waste', 'Kebersihan', 'Peralatan', 'Stok', 'Keamanan']
 };
 
-// Pertanyaan SOP Resmi Berdasarkan Dokumen Warung Sambal Samuda
 const DEFAULT_SOP_QUESTIONS = {
   opening_lobi: [
     { id: 'ol_1', text: 'Lantai bersih, kering, dan tidak licin', category: 'Lobi', requirePhoto: false, requireNoteOnNotOk: true, isActive: true },
@@ -200,7 +197,7 @@ export default function App() {
   const [checklistData, setChecklistData] = useState({});
   const [historyReports, setHistoryReports] = useState([]);
   const [selectedReport, setSelectedReport] = useState(null);
-  const [previewImage, setPreviewImage] = useState(null); // State untuk modal pembesaran gambar
+  const [previewImage, setPreviewImage] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
@@ -209,29 +206,6 @@ export default function App() {
     setToastMessage(String(msg));
     setTimeout(() => setToastMessage(''), 3000);
   };
-
-  useEffect(() => {
-    if (!document.getElementById('tailwind-cdn')) {
-      const script = document.createElement('script');
-      script.id = 'tailwind-cdn';
-      script.src = 'https://cdn.tailwindcss.com';
-      document.head.appendChild(script);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!document.getElementById('instant-tailwind-style')) {
-      const style = document.createElement('style');
-      style.id = 'instant-tailwind-style';
-      style.innerHTML = `
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; padding: 0; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-      `;
-      document.head.appendChild(style);
-    }
-  }, []);
 
   useEffect(() => {
     if (!db) return;
@@ -462,7 +436,6 @@ export default function App() {
     if (!headers.diisiOleh.trim()) { alert("Nama Petugas / PIC wajib diisi!"); return; }
     if (!headers.diperiksaOleh.trim()) { alert("Nama Pemeriksa wajib diisi!"); return; }
     
-    // HANYA FOH YANG WAJIB CEK ABSENSI KARYAWAN
     if (activeTab.includes('lobi') && !attendance.isSubmitted) {
       alert("Untuk Form FOH, harap isi dan simpan Daftar Kehadiran Karyawan terlebih dahulu di Dashboard Utama!");
       return;
@@ -478,7 +451,6 @@ export default function App() {
 
     setIsSubmitting(true);
     try {
-      // Mapping checklistData agar menyimpan teks pertanyaan dan kategori secara eksplisit
       const formattedChecklist = {};
       Object.entries(checklistData).forEach(([qId, ans]) => {
         const foundQ = currentQList.find(q => q.id === qId);
@@ -532,56 +504,49 @@ export default function App() {
   const bohCount = historyReports.filter(r => r.formType?.includes('kitchen')).length;
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans pb-20 selection:bg-rose-600 selection:text-white">
+    <div style={{ minHeight: '100vh', backgroundColor: '#0f172a', color: '#f8fafc', fontFamily: 'Inter, system-ui, sans-serif', paddingBottom: '60px' }}>
       
-      <style dangerouslySetInnerHTML={{ __html: `
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-      `}} />
-
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white px-5 py-3 rounded-2xl shadow-2xl text-xs font-bold flex items-center gap-2 border border-slate-700 animate-bounce">
-          <Check size={16} className="text-emerald-400" /> {toastMessage}
+        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 9999, backgroundColor: '#1e293b', color: '#fff', padding: '12px 20px', borderRadius: '14px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', fontSize: '13px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #334155' }}>
+          <Check size={16} style={{ color: '#34d399' }} /> {toastMessage}
         </div>
       )}
 
       {/* HEADER UTAMA */}
-      <header className="bg-slate-900/90 backdrop-blur-xl border-b border-slate-800 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 py-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-red-600 to-amber-500 flex items-center justify-center shadow-lg shadow-red-600/30 overflow-hidden p-1.5">
-              <svg viewBox="0 0 512 512" className="w-full h-full fill-current text-white">
-                <path d="M256 32c125.8 0 228 102.2 228 228 0 42.4-11.4 82.2-31.2 116.4-13.8 24.2-34.4 44.8-58.6 58.6C338.2 456.6 298.4 468 256 468c-125.8 0-228-102.2-228-228S130.2 32 256 32zm0 48c-99.4 0-180 80.6-180 180 0 29.4 7.4 57 20.4 81.2 1.4 2.6 3.6 4.8 6.2 6.2 24.2 13 51.8 20.4 81.2 20.4 99.4 0 180-80.6 180-180S355.4 80 256 80z" fill="#ffffff" />
-                <path d="M256 120c75.1 0 136 60.9 136 136 0 21.3-5.2 41.4-14.4 59.2-4.2 8.2-13.8 11.4-22 7.2-8.2-4.2-11.4-13.8-7.2-22 7.4-14.6 11.6-31.4 11.6-44.4 0-53-43-96-96-96s-96 43-96 96 43 96 96 96c13 0 29.8-4.2 44.4-11.6 8.2-4.2 17.8-1 22 7.2 4.2 8.2 1 17.8-7.2 22C305.4 346.8 285.3 352 264 352c-75.1 0-136-60.9-136-136s60.9-136 136-136z" fill="#ffffff" />
+      <header style={{ backgroundColor: '#1e293b', borderBottom: '1px solid #334155', padding: '14px 20px', position: 'sticky', top: 0, zIndex: 100 }}>
+        <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '38px', height: '38px', borderRadius: '12px', background: 'linear-gradient(135deg, #dc2626, #f59e0b)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(220,38,38,0.3)', padding: '6px' }}>
+              <svg viewBox="0 0 512 512" style={{ width: '100%', height: '100%', fill: '#ffffff' }}>
+                <path d="M256 32c125.8 0 228 102.2 228 228 0 42.4-11.4 82.2-31.2 116.4-13.8 24.2-34.4 44.8-58.6 58.6C338.2 456.6 298.4 468 256 468c-125.8 0-228-102.2-228-228S130.2 32 256 32zm0 48c-99.4 0-180 80.6-180 180 0 29.4 7.4 57 20.4 81.2 1.4 2.6 3.6 4.8 6.2 6.2 24.2 13 51.8 20.4 81.2 20.4 99.4 0 180-80.6 180-180S355.4 80 256 80z" />
+                <path d="M256 120c75.1 0 136 60.9 136 136 0 21.3-5.2 41.4-14.4 59.2-4.2 8.2-13.8 11.4-22 7.2-8.2-4.2-11.4-13.8-7.2-22 7.4-14.6 11.6-31.4 11.6-44.4 0-53-43-96-96-96s-96 43-96 96 43 96 96 96c13 0 29.8-4.2 44.4-11.6 8.2-4.2 17.8-1 22 7.2 4.2 8.2 1 17.8-7.2 22C305.4 346.8 285.3 352 264 352c-75.1 0-136-60.9-136-136s60.9-136 136-136z" />
               </svg>
             </div>
             <div>
-              <h1 className="text-sm sm:text-base font-black tracking-wide text-white m-0 leading-tight">WARUNG SAMBAL SAMUDA</h1>
-              <p className="text-[10px] sm:text-xs font-bold text-amber-400 tracking-wider uppercase m-0">SOP Digital Control System</p>
+              <h1 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: 0, letterSpacing: '0.5px' }}>WARUNG SAMBAL SAMUDA</h1>
+              <p style={{ fontSize: '11px', fontWeight: 700, color: '#fbbf24', margin: 0, textTransform: 'uppercase' }}>SOP Digital Control System</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {isSyncingCloud && (
-              <span className="hidden sm:flex items-center gap-1.5 text-[11px] bg-amber-500/10 text-amber-300 px-3 py-1.5 rounded-xl border border-amber-500/20 font-medium">
-                <RefreshCw size={12} className="animate-spin text-amber-400" /> Sync Cloud
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#fcd34d', padding: '6px 12px', borderRadius: '10px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Sync
               </span>
             )}
 
             {isAdminLoggedIn ? (
               <button 
                 onClick={() => setIsAdminLoggedIn(false)}
-                className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-sm"
+                style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)', fontSize: '12px', fontWeight: 'bold', padding: '7px 14px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
               >
                 <Unlock size={14} /> Admin Aktif
               </button>
             ) : (
               <button 
                 onClick={() => setShowPinModal(true)}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-sm"
+                style={{ backgroundColor: '#334155', color: '#f8fafc', border: '1px solid #475569', fontSize: '12px', fontWeight: 'bold', padding: '7px 14px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
               >
                 <Lock size={14} /> Login Admin
               </button>
@@ -591,19 +556,33 @@ export default function App() {
       </header>
 
       {/* NAVIGASI TABS */}
-      <nav className="bg-slate-900 border-b border-slate-800 sticky top-[65px] z-30 shadow-md">
-        <div className="max-w-6xl mx-auto px-4 flex overflow-x-auto no-scrollbar gap-2 py-2">
+      <nav style={{ backgroundColor: '#1e293b', borderBottom: '1px solid #334155', position: 'sticky', top: '67px', zIndex: 90, overflowX: 'auto', whiteSpace: 'nowrap' }}>
+        <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'flex', gap: '8px', padding: '8px 20px' }}>
           {[
-            { id: 'dashboard', label: 'Dashboard Utama', icon: <LayoutDashboard size={16} /> },
-            { id: 'foh', label: 'FOH (Lobi & Bar)', icon: <Building2 size={16} /> },
-            { id: 'boh', label: 'BOH (Kitchen)', icon: <UtensilsCrossed size={16} /> },
-            { id: 'history', label: 'Arsip Cloud', icon: <FolderArchive size={16} /> },
-            ...(isAdminLoggedIn ? [{ id: 'admin_panel', label: 'Panel Editor SOP', icon: <ShieldCheck size={16} /> }] : [])
+            { id: 'dashboard', label: 'Dashboard Utama', icon: <LayoutDashboard size={15} /> },
+            { id: 'foh', label: 'FOH (Lobi & Bar)', icon: <Building2 size={15} /> },
+            { id: 'boh', label: 'BOH (Kitchen)', icon: <UtensilsCrossed size={15} /> },
+            { id: 'history', label: 'Arsip Cloud', icon: <FolderArchive size={15} /> },
+            ...(isAdminLoggedIn ? [{ id: 'admin_panel', label: 'Panel Editor SOP', icon: <ShieldCheck size={15} /> }] : [])
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeTab === tab.id ? 'bg-red-600 text-white shadow-lg shadow-red-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '9px 16px',
+                borderRadius: '12px',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                border: 'none',
+                backgroundColor: activeTab === tab.id ? '#dc2626' : 'transparent',
+                color: activeTab === tab.id ? '#ffffff' : '#94a3b8',
+                boxShadow: activeTab === tab.id ? '0 4px 12px rgba(220, 38, 38, 0.3)' : 'none',
+                transition: 'all 0.2s'
+              }}
             >
               {tab.icon} {tab.label}
             </button>
@@ -612,43 +591,42 @@ export default function App() {
       </nav>
 
       {/* CONTAINER UTAMA */}
-      <main className="max-w-6xl mx-auto px-4 py-6">
+      <main style={{ maxWidth: '1100px', margin: '24px auto', padding: '0 20px' }}>
 
         {/* 1. DASHBOARD */}
         {activeTab === 'dashboard' && (
-          <div className="space-y-6">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             
             {/* TANGGAL & INFORMASI HARI INI */}
-            <div className="flex items-center justify-between bg-slate-800/90 border border-slate-700/80 px-5 py-3.5 rounded-2xl shadow-sm">
-              <div className="flex items-center gap-2.5">
-                <Calendar size={18} className="text-amber-400" />
-                <span className="text-xs font-bold text-slate-300">Tanggal Operasional Hari Ini:</span>
+            <div style={{ backgroundColor: '#1e293b', border: '1px solid #334155', padding: '16px 20px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Calendar size={18} style={{ color: '#fbbf24' }} />
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#cbd5e1' }}>Tanggal Operasional Hari Ini:</span>
               </div>
-              <span className="bg-slate-900 text-amber-300 text-xs font-black px-4 py-1.5 rounded-xl border border-amber-500/30">
+              <span style={{ backgroundColor: '#0f172a', color: '#fbbf24', fontSize: '12px', fontWeight: '900', padding: '6px 14px', borderRadius: '10px', border: '1px solid rgba(251, 191, 36, 0.3)' }}>
                 {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
               </span>
             </div>
 
-            <div className="bg-gradient-to-r from-red-950 via-slate-900 to-amber-950 p-6 sm:p-8 rounded-3xl border border-red-900/50 shadow-2xl relative overflow-hidden">
-              <div className="absolute right-0 top-0 w-80 h-80 bg-red-600/10 rounded-full blur-3xl pointer-events-none"></div>
-              <div className="relative z-10 max-w-2xl">
-                <span className="bg-red-500/20 text-red-300 border border-red-500/30 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full inline-block mb-3">
+            <div style={{ background: 'linear-gradient(135deg, #7f1d1d, #0f172a, #78350f)', padding: '28px', borderRadius: '20px', border: '1px solid rgba(220, 38, 38, 0.4)', boxShadow: '0 10px 30px rgba(0,0,0,0.3)', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'relative', zIndex: 10, maxWidth: '650px' }}>
+                <span style={{ backgroundColor: 'rgba(220, 38, 38, 0.3)', color: '#fca5a5', border: '1px solid rgba(220, 38, 38, 0.4)', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', padding: '4px 12px', borderRadius: '20px', display: 'inline-block', marginBottom: '12px' }}>
                   Operational Control Center
                 </span>
-                <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide mb-2">Selamat Datang di Portal SOP Warung Sambal Samuda</h2>
-                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-6">
+                <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#ffffff', margin: '0 0 8px 0' }}>Selamat Datang di Portal SOP Warung Sambal Samuda</h2>
+                <p style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: '1.6', margin: '0 0 20px 0' }}>
                   Absensi karyawan wajib diisi sebelum mengakses form FOH. Form BOH dapat diakses secara langsung. Semua data tersinkronisasi real-time ke cloud.
                 </p>
-                <div className="flex flex-wrap gap-3">
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                   <button 
                     onClick={() => setActiveTab('foh')}
-                    className="bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-2.5 rounded-2xl text-xs shadow-lg shadow-red-600/30 flex items-center gap-2 transition-transform active:scale-95"
+                    style={{ backgroundColor: '#dc2626', color: '#ffffff', border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(220,38,38,0.3)' }}
                   >
                     <Building2 size={16} /> Buka Form FOH
                   </button>
                   <button 
                     onClick={() => setActiveTab('boh')}
-                    className="bg-slate-800 hover:bg-slate-700 text-white font-bold px-5 py-2.5 rounded-2xl text-xs border border-slate-700 flex items-center gap-2 transition-transform active:scale-95"
+                    style={{ backgroundColor: '#1e293b', color: '#ffffff', border: '1px solid #475569', padding: '10px 20px', borderRadius: '12px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
                   >
                     <UtensilsCrossed size={16} /> Buka Form BOH
                   </button>
@@ -656,54 +634,54 @@ export default function App() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-slate-800/80 backdrop-blur border border-slate-700/80 p-5 rounded-3xl shadow-sm flex items-center justify-between">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+              <div style={{ backgroundColor: '#1e293b', border: '1px solid #334155', padding: '20px', borderRadius: '18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Total Laporan Cloud</p>
-                  <h3 className="text-2xl font-black text-white m-0">{totalReportsCount}</h3>
+                  <p style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', margin: '0 0 4px 0' }}>Total Laporan Cloud</p>
+                  <h3 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{totalReportsCount}</h3>
                 </div>
-                <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400">
-                  <FileText size={24} />
+                <div style={{ width: '48px', height: '48px', borderRadius: '14px', backgroundColor: 'rgba(220, 38, 38, 0.1)', border: '1px solid rgba(220, 38, 38, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f87171' }}>
+                  <FileText size={22} />
                 </div>
               </div>
 
-              <div className="bg-slate-800/80 backdrop-blur border border-slate-700/80 p-5 rounded-3xl shadow-sm flex items-center justify-between">
+              <div style={{ backgroundColor: '#1e293b', border: '1px solid #334155', padding: '20px', borderRadius: '18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Laporan FOH</p>
-                  <h3 className="text-2xl font-black text-white m-0">{fohCount}</h3>
+                  <p style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', margin: '0 0 4px 0' }}>Laporan FOH</p>
+                  <h3 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{fohCount}</h3>
                 </div>
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-                  <Building2 size={24} />
+                <div style={{ width: '48px', height: '48px', borderRadius: '14px', backgroundColor: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fbbf24' }}>
+                  <Building2 size={22} />
                 </div>
               </div>
 
-              <div className="bg-slate-800/80 backdrop-blur border border-slate-700/80 p-5 rounded-3xl shadow-sm flex items-center justify-between">
+              <div style={{ backgroundColor: '#1e293b', border: '1px solid #334155', padding: '20px', borderRadius: '18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Laporan BOH</p>
-                  <h3 className="text-2xl font-black text-white m-0">{bohCount}</h3>
+                  <p style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', margin: '0 0 4px 0' }}>Laporan BOH</p>
+                  <h3 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{bohCount}</h3>
                 </div>
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-                  <UtensilsCrossed size={24} />
+                <div style={{ width: '48px', height: '48px', borderRadius: '14px', backgroundColor: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#34d399' }}>
+                  <UtensilsCrossed size={22} />
                 </div>
               </div>
             </div>
 
-            {/* ABSENSI KARYAWAN (Wajib untuk FOH) */}
-            <div className="bg-slate-800/90 border border-slate-700 p-6 sm:p-8 rounded-3xl shadow-xl space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-700/80 pb-4">
+            {/* ABSENSI KARYAWAN */}
+            <div style={{ backgroundColor: '#1e293b', border: '1px solid #334155', padding: '24px', borderRadius: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #334155', paddingBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
                 <div>
-                  <span className="text-[10px] font-black uppercase bg-amber-500/20 text-amber-300 px-3 py-1 rounded-full border border-amber-500/30">Wajib untuk FOH</span>
-                  <h3 className="text-base sm:text-lg font-black text-white mt-1 flex items-center gap-2">
-                    <Users size={20} className="text-amber-400" /> Daftar Kehadiran Karyawan Hari Ini
+                  <span style={{ fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', backgroundColor: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', padding: '3px 10px', borderRadius: '20px', border: '1px solid rgba(245, 158, 11, 0.3)' }}>Wajib untuk FOH</span>
+                  <h3 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '6px 0 0 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Users size={18} style={{ color: '#fbbf24' }} /> Daftar Kehadiran Karyawan Hari Ini
                   </h3>
                 </div>
-                <span className="bg-slate-900 text-slate-300 text-xs font-bold px-4 py-2 rounded-2xl border border-slate-700 w-fit">{todayDateStr}</span>
+                <span style={{ backgroundColor: '#0f172a', color: '#cbd5e1', fontSize: '12px', fontWeight: 'bold', padding: '6px 14px', borderRadius: '12px', border: '1px solid #334155' }}>{todayDateStr}</span>
               </div>
 
               {attendance.isSubmitted ? (
-                <div className="bg-emerald-950/40 border border-emerald-500/30 p-5 rounded-2xl space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
+                <div style={{ backgroundColor: 'rgba(6, 95, 70, 0.3)', border: '1px solid rgba(16, 185, 129, 0.4)', padding: '20px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#34d399', fontWeight: 'bold', fontSize: '13px' }}>
                       <CheckCircle2 size={18} /> Kehadiran Karyawan Telah Disimpan di Cloud (Form FOH Terbuka)
                     </div>
                     <button 
@@ -717,52 +695,52 @@ export default function App() {
                           }
                         } catch (e) { console.error(e); }
                       }}
-                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3.5 py-2 rounded-xl border border-slate-600 transition-all"
+                      style={{ backgroundColor: '#334155', color: '#f8fafc', fontSize: '11px', fontWeight: 'bold', padding: '6px 12px', borderRadius: '10px', border: '1px solid #475569', cursor: 'pointer' }}
                     >
                       Edit Absen
                     </button>
                   </div>
                   
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 text-xs">
-                    <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-700">
-                      <span className="text-slate-400 block mb-0.5">Hadir</span>
-                      <strong className="text-white text-sm">{attendance.hadirCount} Orang</strong>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', fontSize: '12px' }}>
+                    <div style={{ backgroundColor: '#0f172a', padding: '12px', borderRadius: '12px', border: '1px solid #334155' }}>
+                      <span style={{ color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Hadir</span>
+                      <strong style={{ color: '#ffffff', fontSize: '14px' }}>{attendance.hadirCount} Orang</strong>
                     </div>
-                    <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-700">
-                      <span className="text-slate-400 block mb-0.5">Sakit</span>
-                      <strong className="text-amber-400 text-sm">{attendance.sakitList.filter(Boolean).length} Orang</strong>
+                    <div style={{ backgroundColor: '#0f172a', padding: '12px', borderRadius: '12px', border: '1px solid #334155' }}>
+                      <span style={{ color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Sakit</span>
+                      <strong style={{ color: '#fbbf24', fontSize: '14px' }}>{attendance.sakitList.filter(Boolean).length} Orang</strong>
                     </div>
-                    <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-700">
-                      <span className="text-slate-400 block mb-0.5">Izin</span>
-                      <strong className="text-sky-400 text-sm">{attendance.izinList.filter(Boolean).length} Orang</strong>
+                    <div style={{ backgroundColor: '#0f172a', padding: '12px', borderRadius: '12px', border: '1px solid #334155' }}>
+                      <span style={{ color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Izin</span>
+                      <strong style={{ color: '#38bdf8', fontSize: '14px' }}>{attendance.izinList.filter(Boolean).length} Orang</strong>
                     </div>
-                    <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-700">
-                      <span className="text-slate-400 block mb-0.5">Tanpa Keterangan</span>
-                      <strong className="text-rose-400 text-sm">{attendance.alphaList.filter(Boolean).length} Orang</strong>
+                    <div style={{ backgroundColor: '#0f172a', padding: '12px', borderRadius: '12px', border: '1px solid #334155' }}>
+                      <span style={{ color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Alpha</span>
+                      <strong style={{ color: '#f87171', fontSize: '14px' }}>{attendance.alphaList.filter(Boolean).length} Orang</strong>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-6 bg-slate-900/60 p-6 rounded-2xl border border-slate-800">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', backgroundColor: '#0f172a', padding: '20px', borderRadius: '16px', border: '1px solid #334155' }}>
                   <div>
-                    <label className="block text-xs font-bold text-slate-200 mb-2">Jumlah Karyawan Hadir (Masuk Kerja):</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#cbd5e1', marginBottom: '8px' }}>Jumlah Karyawan Hadir (Masuk Kerja):</label>
                     <input 
                       type="number"
                       placeholder="Contoh: 10"
                       value={attendance.hadirCount}
                       onChange={(e) => setAttendance({ ...attendance, hadirCount: e.target.value })}
-                      className="w-full sm:w-56 bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 text-xs font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                      style={{ width: '100%', maxWidth: '220px', backgroundColor: '#1e293b', border: '1px solid #475569', color: '#fff', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', outline: 'none' }}
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-2 border-t border-slate-800">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-amber-400">Karyawan Sakit:</label>
-                        <button type="button" onClick={() => setAttendance(p => ({ ...p, sakitList: [...p.sakitList, ''] }))} className="text-[11px] text-amber-300 font-bold hover:underline">+ Nama</button>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', paddingTop: '12px', borderTop: '1px solid #334155' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#fbbf24' }}>Karyawan Sakit:</label>
+                        <button type="button" onClick={() => setAttendance(p => ({ ...p, sakitList: [...p.sakitList, ''] }))} style={{ fontSize: '11px', color: '#fcd34d', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>+ Nama</button>
                       </div>
                       {attendance.sakitList.map((name, idx) => (
-                        <div key={idx} className="flex gap-2">
+                        <div key={idx} style={{ display: 'flex', gap: '8px' }}>
                           <input 
                             type="text" 
                             placeholder={`Nama sakit #${idx+1}`}
@@ -772,22 +750,22 @@ export default function App() {
                               list[idx] = e.target.value;
                               setAttendance({ ...attendance, sakitList: list });
                             }}
-                            className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2 text-xs"
+                            style={{ width: '100%', backgroundColor: '#1e293b', border: '1px solid #475569', color: '#fff', borderRadius: '10px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
                           />
                           {attendance.sakitList.length > 1 && (
-                            <button type="button" onClick={() => setAttendance(p => ({ ...p, sakitList: p.sakitList.filter((_, i) => i !== idx) }))} className="text-rose-400 px-2"><Trash2 size={14} /></button>
+                            <button type="button" onClick={() => setAttendance(p => ({ ...p, sakitList: p.sakitList.filter((_, i) => i !== idx) }))} style={{ color: '#f87171', background: 'none', border: 'none', cursor: 'pointer' }}><Trash2 size={14} /></button>
                           )}
                         </div>
                       ))}
                     </div>
 
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-sky-400">Karyawan Izin:</label>
-                        <button type="button" onClick={() => setAttendance(p => ({ ...p, izinList: [...p.izinList, ''] }))} className="text-[11px] text-sky-300 font-bold hover:underline">+ Nama</button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#38bdf8' }}>Karyawan Izin:</label>
+                        <button type="button" onClick={() => setAttendance(p => ({ ...p, izinList: [...p.izinList, ''] }))} style={{ fontSize: '11px', color: '#7dd3fc', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>+ Nama</button>
                       </div>
                       {attendance.izinList.map((name, idx) => (
-                        <div key={idx} className="flex gap-2">
+                        <div key={idx} style={{ display: 'flex', gap: '8px' }}>
                           <input 
                             type="text" 
                             placeholder={`Nama izin #${idx+1}`}
@@ -797,22 +775,22 @@ export default function App() {
                               list[idx] = e.target.value;
                               setAttendance({ ...attendance, izinList: list });
                             }}
-                            className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2 text-xs"
+                            style={{ width: '100%', backgroundColor: '#1e293b', border: '1px solid #475569', color: '#fff', borderRadius: '10px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
                           />
                           {attendance.izinList.length > 1 && (
-                            <button type="button" onClick={() => setAttendance(p => ({ ...p, izinList: p.izinList.filter((_, i) => i !== idx) }))} className="text-rose-400 px-2"><Trash2 size={14} /></button>
+                            <button type="button" onClick={() => setAttendance(p => ({ ...p, izinList: p.izinList.filter((_, i) => i !== idx) }))} style={{ color: '#f87171', background: 'none', border: 'none', cursor: 'pointer' }}><Trash2 size={14} /></button>
                           )}
                         </div>
                       ))}
                     </div>
 
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-rose-400">Tanpa Keterangan (Alpha):</label>
-                        <button type="button" onClick={() => setAttendance(p => ({ ...p, alphaList: [...p.alphaList, ''] }))} className="text-[11px] text-rose-300 font-bold hover:underline">+ Nama</button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#f87171' }}>Tanpa Keterangan (Alpha):</label>
+                        <button type="button" onClick={() => setAttendance(p => ({ ...p, alphaList: [...p.alphaList, ''] }))} style={{ fontSize: '11px', color: '#fca5a5', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>+ Nama</button>
                       </div>
                       {attendance.alphaList.map((name, idx) => (
-                        <div key={idx} className="flex gap-2">
+                        <div key={idx} style={{ display: 'flex', gap: '8px' }}>
                           <input 
                             type="text" 
                             placeholder={`Nama alpha #${idx+1}`}
@@ -822,10 +800,10 @@ export default function App() {
                               list[idx] = e.target.value;
                               setAttendance({ ...attendance, alphaList: list });
                             }}
-                            className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2 text-xs"
+                            style={{ width: '100%', backgroundColor: '#1e293b', border: '1px solid #475569', color: '#fff', borderRadius: '10px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
                           />
                           {attendance.alphaList.length > 1 && (
-                            <button type="button" onClick={() => setAttendance(p => ({ ...p, alphaList: p.alphaList.filter((_, i) => i !== idx) }))} className="text-rose-400 px-2"><Trash2 size={14} /></button>
+                            <button type="button" onClick={() => setAttendance(p => ({ ...p, alphaList: p.alphaList.filter((_, i) => i !== idx) }))} style={{ color: '#f87171', background: 'none', border: 'none', cursor: 'pointer' }}><Trash2 size={14} /></button>
                           )}
                         </div>
                       ))}
@@ -835,7 +813,7 @@ export default function App() {
                   <button 
                     type="button"
                     onClick={handleSaveAttendance}
-                    className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-3.5 rounded-2xl text-xs shadow-lg transition-transform active:scale-98 mt-4"
+                    style={{ backgroundColor: '#fbbf24', color: '#0f172a', border: 'none', padding: '12px', borderRadius: '14px', fontWeight: 900, fontSize: '12px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(251, 191, 36, 0.3)', marginTop: '8px' }}
                   >
                     Simpan Kehadiran Karyawan (Buka Akses FOH)
                   </button>
@@ -843,29 +821,29 @@ export default function App() {
               )}
             </div>
 
-            <div className="bg-slate-800/90 border border-slate-700 p-6 rounded-3xl shadow-lg">
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-300 mb-4 flex items-center gap-2">
-                <Calendar size={18} className="text-emerald-400" /> Ringkasan Laporan Hari Ini ({todayDateStr})
+            <div style={{ backgroundColor: '#1e293b', border: '1px solid #334155', padding: '24px', borderRadius: '20px' }}>
+              <h3 style={{ fontSize: '12px', fontWeight: 900, textTransform: 'uppercase', color: '#cbd5e1', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Calendar size={16} style={{ color: '#34d399' }} /> Ringkasan Laporan Hari Ini ({todayDateStr})
               </h3>
               {todayReports.length === 0 ? (
-                <div className="text-center py-8 text-slate-500 text-xs italic bg-slate-900/50 rounded-2xl border border-dashed border-slate-800">
+                <div style={{ textAlign: 'center', padding: '30px 0', color: '#64748b', fontSize: '12px', fontStyle: 'italic', backgroundColor: '#0f172a', borderRadius: '14px', border: '1px dashed #334155' }}>
                   Belum ada laporan checklist yang diinput hari ini.
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {todayReports.map((rep, idx) => (
-                    <div key={idx} className="bg-slate-900/80 border border-slate-700/70 p-4 rounded-2xl flex items-center justify-between text-xs">
+                    <div key={idx} style={{ backgroundColor: '#0f172a', border: '1px solid #334155', padding: '14px 18px', borderRadius: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
                       <div>
-                        <strong className="text-white block mb-1 text-sm">{rep.formTitle}</strong>
-                        <span className="text-slate-400">PIC: <strong className="text-slate-200">{rep.headers?.diisiOleh}</strong></span>
+                        <strong style={{ color: '#ffffff', display: 'block', marginBottom: '3px', fontSize: '13px' }}>{rep.formTitle}</strong>
+                        <span style={{ color: '#94a3b8' }}>PIC: <strong style={{ color: '#cbd5e1' }}>{rep.headers?.diisiOleh}</strong></span>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="bg-emerald-500/20 text-emerald-300 text-[11px] font-bold px-3 py-1 rounded-xl border border-emerald-500/30">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#34d399', fontSize: '11px', fontWeight: 'bold', padding: '4px 10px', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
                           ✓ Selesai
                         </span>
                         <button 
                           onClick={() => setSelectedReport(rep)}
-                          className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 px-3.5 py-2 rounded-xl font-bold transition-all"
+                          style={{ backgroundColor: '#334155', color: '#f8fafc', border: '1px solid #475569', padding: '6px 14px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}
                         >
                           Detail
                         </button>
@@ -879,23 +857,23 @@ export default function App() {
           </div>
         )}
 
-        {/* 2. FOH (TERKONTROL OLEH ABSENSI) */}
+        {/* 2. FOH */}
         {activeTab === 'foh' && (
-          <div className="space-y-6">
-            <div className="bg-gradient-to-r from-amber-950 to-slate-900 p-6 rounded-3xl border border-amber-900/40 shadow-xl flex items-center justify-between">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ background: 'linear-gradient(135deg, #78350f, #0f172a)', padding: '24px', borderRadius: '20px', border: '1px solid rgba(245, 158, 11, 0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full inline-block mb-2">
+                <span style={{ backgroundColor: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', padding: '4px 12px', borderRadius: '20px', display: 'inline-block', marginBottom: '8px' }}>
                   Front of House Control (Terkunci jika belum absen)
                 </span>
-                <h2 className="text-lg sm:text-xl font-black text-white m-0">Form Checklist FOH (Lobi, Bar & Area Umum)</h2>
+                <h2 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: 0 }}>Form Checklist FOH (Lobi, Bar & Area Umum)</h2>
               </div>
-              <Building2 size={36} className="text-amber-400 opacity-80" />
+              <Building2 size={36} style={{ color: '#fbbf24', opacity: 0.8 }} />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
               {[
-                { key: 'opening_lobi', title: 'Opening FOH (Lobi & Bar)', desc: 'Pemeriksaan kesiapan area publik sebelum operasional buka', icon: <Building2 className="text-amber-400" size={24} /> },
-                { key: 'closing_lobi', title: 'Closing FOH (Lobi & Bar)', desc: 'Pemberkasan malam, kasir & pengamanan area publik', icon: <Building2 className="text-orange-400" size={24} /> }
+                { key: 'opening_lobi', title: 'Opening FOH (Lobi & Bar)', desc: 'Pemeriksaan kesiapan area publik sebelum operasional buka', icon: <Building2 style={{ color: '#fbbf24' }} size={24} /> },
+                { key: 'closing_lobi', title: 'Closing FOH (Lobi & Bar)', desc: 'Pemberkasan malam, kasir & pengamanan area publik', icon: <Building2 style={{ color: '#f97316' }} size={24} /> }
               ].map(item => {
                 const isSubmitted = historyReports.some(r => r.formType === item.key && r.headers?.tanggal === todayDateStr);
                 return (
@@ -908,25 +886,25 @@ export default function App() {
                       }
                       setActiveTab(item.key);
                     }}
-                    className={`bg-slate-800/90 border border-slate-700 hover:border-amber-500/50 p-6 rounded-3xl shadow-lg cursor-pointer transition-all group flex flex-col justify-between ${!attendance.isSubmitted ? 'opacity-60' : ''}`}
+                    style={{ backgroundColor: '#1e293b', border: '1px solid #334155', padding: '24px', borderRadius: '20px', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', opacity: !attendance.isSubmitted ? 0.6 : 1, transition: 'all 0.2s' }}
                   >
                     <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="p-3 rounded-2xl bg-slate-900 border border-slate-700">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                        <div style={{ padding: '12px', borderRadius: '14px', backgroundColor: '#0f172a', border: '1px solid #334155' }}>
                           {item.icon}
                         </div>
                         {isSubmitted && (
-                          <span className="bg-emerald-500/20 text-emerald-300 text-[11px] font-bold px-3 py-1 rounded-xl border border-emerald-500/30">
+                          <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#34d399', fontSize: '11px', fontWeight: 'bold', padding: '4px 10px', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
                             Sudah Diinput
                           </span>
                         )}
                       </div>
-                      <h3 className="text-base font-black text-white group-hover:text-amber-400 transition-colors mb-1">{item.title}</h3>
-                      <p className="text-xs text-slate-400 mb-6">{item.desc}</p>
+                      <h3 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '0 0 6px 0' }}>{item.title}</h3>
+                      <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 20px 0', lineHeight: '1.5' }}>{item.desc}</p>
                     </div>
-                    <div className="flex items-center justify-between text-xs font-bold text-amber-400">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', fontWeight: 'bold', color: '#fbbf24' }}>
                       <span>{!attendance.isSubmitted ? 'Terkunci (Wajib Absen)' : 'Mulai Pemeriksaan'}</span>
-                      {!attendance.isSubmitted ? <Lock size={16} /> : <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />}
+                      {!attendance.isSubmitted ? <Lock size={16} /> : <ChevronRight size={18} />}
                     </div>
                   </div>
                 );
@@ -935,48 +913,48 @@ export default function App() {
           </div>
         )}
 
-        {/* 3. BOH (BEBAS DIAKSES TANPA SYARAT ABSENSI FOH) */}
+        {/* 3. BOH */}
         {activeTab === 'boh' && (
-          <div className="space-y-6">
-            <div className="bg-gradient-to-r from-red-950 to-slate-900 p-6 rounded-3xl border border-red-900/40 shadow-xl flex items-center justify-between">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ background: 'linear-gradient(135deg, #7f1d1d, #0f172a)', padding: '24px', borderRadius: '20px', border: '1px solid rgba(220, 38, 38, 0.4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <span className="bg-red-500/20 text-red-300 border border-red-500/30 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full inline-block mb-2">
+                <span style={{ backgroundColor: 'rgba(220, 38, 38, 0.2)', color: '#f87171', border: '1px solid rgba(220, 38, 38, 0.3)', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', padding: '4px 12px', borderRadius: '20px', display: 'inline-block', marginBottom: '8px' }}>
                   Back of House Control (Akses Langsung)
                 </span>
-                <h2 className="text-lg sm:text-xl font-black text-white m-0">Form Checklist BOH (Kitchen & Dapur)</h2>
+                <h2 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: 0 }}>Form Checklist BOH (Kitchen & Dapur)</h2>
               </div>
-              <UtensilsCrossed size={36} className="text-red-400 opacity-80" />
+              <UtensilsCrossed size={36} style={{ color: '#f87171', opacity: 0.8 }} />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
               {[
-                { key: 'opening_kitchen', title: 'Opening Kitchen (BOH)', desc: 'Pemeriksaan kesiapan dapur, kebersihan & suhu kulkas', icon: <UtensilsCrossed className="text-red-400" size={24} /> },
-                { key: 'closing_kitchen', title: 'Closing Kitchen (BOH)', desc: 'Pembersihan dapur malam, pencatatan waste & pengamanan gas', icon: <UtensilsCrossed className="text-rose-400" size={24} /> }
+                { key: 'opening_kitchen', title: 'Opening Kitchen (BOH)', desc: 'Pemeriksaan kesiapan dapur, kebersihan & suhu kulkas', icon: <UtensilsCrossed style={{ color: '#f87171' }} size={24} /> },
+                { key: 'closing_kitchen', title: 'Closing Kitchen (BOH)', desc: 'Pembersihan dapur malam, pencatatan waste & pengamanan gas', icon: <UtensilsCrossed style={{ color: '#fb7185' }} size={24} /> }
               ].map(item => {
                 const isSubmitted = historyReports.some(r => r.formType === item.key && r.headers?.tanggal === todayDateStr);
                 return (
                   <div 
                     key={item.key}
                     onClick={() => setActiveTab(item.key)}
-                    className="bg-slate-800/90 border border-slate-700 hover:border-red-500/50 p-6 rounded-3xl shadow-lg cursor-pointer transition-all group flex flex-col justify-between"
+                    style={{ backgroundColor: '#1e293b', border: '1px solid #334155', padding: '24px', borderRadius: '20px', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', transition: 'all 0.2s' }}
                   >
                     <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="p-3 rounded-2xl bg-slate-900 border border-slate-700">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                        <div style={{ padding: '12px', borderRadius: '14px', backgroundColor: '#0f172a', border: '1px solid #334155' }}>
                           {item.icon}
                         </div>
                         {isSubmitted && (
-                          <span className="bg-emerald-500/20 text-emerald-300 text-[11px] font-bold px-3 py-1 rounded-xl border border-emerald-500/30">
+                          <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#34d399', fontSize: '11px', fontWeight: 'bold', padding: '4px 10px', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
                             Sudah Diinput
                           </span>
                         )}
                       </div>
-                      <h3 className="text-base font-black text-white group-hover:text-red-400 transition-colors mb-1">{item.title}</h3>
-                      <p className="text-xs text-slate-400 mb-6">{item.desc}</p>
+                      <h3 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '0 0 6px 0' }}>{item.title}</h3>
+                      <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 20px 0', lineHeight: '1.5' }}>{item.desc}</p>
                     </div>
-                    <div className="flex items-center justify-between text-xs font-bold text-red-400">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', fontWeight: 'bold', color: '#f87171' }}>
                       <span>Mulai Pemeriksaan</span>
-                      <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                      <ChevronRight size={18} />
                     </div>
                   </div>
                 );
@@ -987,53 +965,53 @@ export default function App() {
 
         {/* 4. FORM CHECKLIST AKTIF */}
         {['opening_lobi', 'closing_lobi', 'opening_kitchen', 'closing_kitchen'].includes(activeTab) && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between bg-slate-800/80 p-4 rounded-2xl border border-slate-700">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ backgroundColor: '#1e293b', border: '1px solid #334155', padding: '16px 20px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <button 
                 onClick={() => setActiveTab(activeTab.includes('lobi') ? 'foh' : 'boh')}
-                className="bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-all"
+                style={{ backgroundColor: '#0f172a', color: '#f8fafc', border: '1px solid #334155', padding: '8px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
               >
                 ← Kembali ke Menu
               </button>
-              <span className="text-xs font-black uppercase text-red-400 bg-red-500/10 px-3.5 py-1.5 rounded-xl border border-red-500/20">
+              <span style={{ fontSize: '12px', fontWeight: 900, textTransform: 'uppercase', color: '#f87171', backgroundColor: 'rgba(220, 38, 38, 0.1)', padding: '6px 14px', borderRadius: '12px', border: '1px solid rgba(220, 38, 38, 0.2)' }}>
                 {getFormTitle(activeTab)}
               </span>
             </div>
 
-            <div className="bg-slate-800/90 border border-slate-700 p-6 rounded-3xl shadow-xl space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-900/80 p-4 rounded-2xl border border-slate-700/70">
+            <div style={{ backgroundColor: '#1e293b', border: '1px solid #334155', padding: '24px', borderRadius: '20px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', backgroundColor: '#0f172a', padding: '18px', borderRadius: '16px', border: '1px solid #334155' }}>
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">Tanggal:</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#cbd5e1', marginBottom: '6px' }}>Tanggal:</label>
                   <input 
                     type="date"
                     value={headers.tanggal}
                     onChange={(e) => setHeaders({ ...headers, tanggal: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-red-600"
+                    style={{ width: '100%', backgroundColor: '#1e293b', border: '1px solid #475569', color: '#fff', borderRadius: '10px', padding: '10px', fontSize: '12px', outline: 'none' }}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">Diisi Oleh (Petugas):</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#cbd5e1', marginBottom: '6px' }}>Diisi Oleh (Petugas):</label>
                   <input 
                     type="text"
                     placeholder="Nama lengkap petugas..."
                     value={headers.diisiOleh}
                     onChange={(e) => setHeaders({ ...headers, diisiOleh: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-red-600"
+                    style={{ width: '100%', backgroundColor: '#1e293b', border: '1px solid #475569', color: '#fff', borderRadius: '10px', padding: '10px', fontSize: '12px', outline: 'none' }}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">Diperiksa Oleh (Manager/PIC):</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#cbd5e1', marginBottom: '6px' }}>Diperiksa Oleh (Manager/PIC):</label>
                   <input 
                     type="text"
                     placeholder="Nama pemeriksa..."
                     value={headers.diperiksaOleh}
                     onChange={(e) => setHeaders({ ...headers, diperiksaOleh: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-red-600"
+                    style={{ width: '100%', backgroundColor: '#1e293b', border: '1px solid #475569', color: '#fff', borderRadius: '10px', padding: '10px', fontSize: '12px', outline: 'none' }}
                   />
                 </div>
               </div>
 
-              <div className="space-y-6">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 {(() => {
                   const qList = questions[activeTab] || [];
                   const categories = formCategories[activeTab] || [...new Set(qList.map(q => q.category))];
@@ -1043,86 +1021,84 @@ export default function App() {
                     if (catQuestions.length === 0) return null;
 
                     return (
-                      <div key={catName} className="border border-slate-700 rounded-3xl overflow-hidden shadow-sm bg-slate-900/60">
-                        <div className="bg-slate-900 text-white px-5 py-3 text-xs font-black uppercase tracking-wider flex items-center justify-between border-b border-slate-800">
+                      <div key={catName} style={{ border: '1px solid #334155', borderRadius: '18px', overflow: 'hidden', backgroundColor: 'rgba(15, 23, 42, 0.6)' }}>
+                        <div style={{ backgroundColor: '#0f172a', color: '#ffffff', padding: '12px 20px', fontSize: '12px', fontWeight: 900, textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #334155' }}>
                           <span>Area: {catName}</span>
-                          <span className="text-[10px] bg-slate-800 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700">{catQuestions.length} Item</span>
+                          <span style={{ fontSize: '10px', backgroundColor: '#1e293b', color: '#cbd5e1', padding: '3px 10px', borderRadius: '8px', border: '1px solid #334155' }}>{catQuestions.length} Item</span>
                         </div>
 
-                        <div className="divide-y divide-slate-800/80">
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
                           {catQuestions.map((q, qIdx) => {
                             const ans = checklistData[q.id] || { status: '', note: '', photo: '' };
                             return (
-                              <div key={q.id} className="p-5 space-y-4 hover:bg-slate-800/40 transition-colors">
-                                <div className="flex items-start justify-between gap-3">
-                                  <span className="text-xs font-semibold text-slate-200 leading-relaxed">
-                                    <strong className="text-slate-500 mr-2">{qIdx + 1}.</strong> {q.text}
-                                    {q.requirePhoto && <span className="ml-2 text-[10px] bg-red-500/20 text-red-300 font-bold px-2 py-0.5 rounded-md border border-red-500/30">Wajib Foto</span>}
+                              <div key={q.id} style={{ padding: '20px', borderBottom: '1px solid rgba(51, 65, 85, 0.5)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#f8fafc', lineHeight: '1.5' }}>
+                                    <strong style={{ color: '#64748b', marginRight: '8px' }}>{qIdx + 1}.</strong> {q.text}
+                                    {q.requirePhoto && <span style={{ marginLeft: '10px', fontSize: '10px', backgroundColor: 'rgba(220, 38, 38, 0.2)', color: '#f87171', fontWeight: 'bold', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(220, 38, 38, 0.3)' }}>Wajib Foto</span>}
                                   </span>
                                 </div>
 
-                                <div className="flex items-center gap-4">
-                                  <label className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold cursor-pointer transition-all ${ans.status === 'OK' ? 'bg-slate-700 border-emerald-500 text-emerald-300 shadow-sm' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`}>
+                                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '12px', border: ans.status === 'OK' ? '1px solid #34d399' : '1px solid #334155', backgroundColor: ans.status === 'OK' ? '#1e293b' : 'transparent', color: ans.status === 'OK' ? '#34d399' : '#94a3b8', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
                                     <input 
                                       type="radio" 
                                       name={`status_${q.id}`} 
                                       checked={ans.status === 'OK'}
                                       onChange={() => handleAnswerChange(q.id, 'status', 'OK')}
-                                      className="accent-emerald-500"
                                     /> OK
                                   </label>
-                                  <label className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold cursor-pointer transition-all ${ans.status === 'Tidak' ? 'bg-slate-700 border-rose-500 text-rose-300 shadow-sm' : 'border-slate-700 text-slate-400 hover:bg-slate-800'}`}>
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '12px', border: ans.status === 'Tidak' ? '1px solid #f87171' : '1px solid #334155', backgroundColor: ans.status === 'Tidak' ? '#1e293b' : 'transparent', color: ans.status === 'Tidak' ? '#f87171' : '#94a3b8', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
                                     <input 
                                       type="radio" 
                                       name={`status_${q.id}`} 
                                       checked={ans.status === 'Tidak'}
                                       onChange={() => handleAnswerChange(q.id, 'status', 'Tidak')}
-                                      className="accent-rose-500"
                                     /> Tidak (Masalah)
                                   </label>
                                 </div>
 
                                 {ans.status === 'Tidak' && (
-                                  <div className="pt-1">
+                                  <div>
                                     <input 
                                       type="text"
                                       placeholder="Catatan Kendala / Tindak Lanjut (Wajib diisi)..."
                                       value={ans.note || ''}
                                       onChange={(e) => handleAnswerChange(q.id, 'note', e.target.value)}
-                                      className="w-full bg-rose-950/30 border border-rose-500/50 rounded-xl px-4 py-2.5 text-xs font-medium text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                                      style={{ width: '100%', backgroundColor: 'rgba(127, 29, 29, 0.2)', border: '1px solid rgba(248, 113, 113, 0.5)', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', color: '#fff', outline: 'none' }}
                                     />
                                   </div>
                                 )}
 
                                 {q.requirePhoto && (
-                                  <div className="pt-1 flex flex-wrap items-center gap-3">
-                                    <label className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-2 border border-slate-700 shadow-sm active:scale-95 transition-transform">
-                                      <Camera size={16} className="text-red-400" />
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
+                                    <label style={{ backgroundColor: '#334155', color: '#fff', padding: '8px 14px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid #475569' }}>
+                                      <Camera size={15} style={{ color: '#f87171' }} />
                                       {ans.photo ? 'Ganti Foto (Kamera)' : 'Ambil dari Kamera'}
                                       <input 
                                         type="file" 
                                         accept="image/*" 
                                         capture="environment"
                                         onChange={(e) => handlePhotoCapture(q.id, e)}
-                                        className="hidden"
+                                        style={{ display: 'none' }}
                                       />
                                     </label>
 
-                                    <label className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-2 border border-slate-700 shadow-sm active:scale-95 transition-transform">
-                                      <FolderArchive size={16} className="text-amber-400" />
+                                    <label style={{ backgroundColor: '#334155', color: '#fff', padding: '8px 14px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid #475569' }}>
+                                      <FolderArchive size={15} style={{ color: '#fbbf24' }} />
                                       Pilih dari Galeri
                                       <input 
                                         type="file" 
                                         accept="image/*" 
                                         onChange={(e) => handlePhotoCapture(q.id, e)}
-                                        className="hidden"
+                                        style={{ display: 'none' }}
                                       />
                                     </label>
 
                                     {ans.photo && (
-                                      <div className="flex items-center gap-2.5">
-                                        <img src={ans.photo} alt="Bukti" className="w-11 h-11 object-cover rounded-xl border border-slate-700 shadow-sm" />
-                                        <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <img src={ans.photo} alt="Bukti" style={{ width: '42px', height: '42px', objectFit: 'cover', borderRadius: '10px', border: '1px solid #475569' }} />
+                                        <span style={{ fontSize: '11px', color: '#34d399', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                           <Check size={14} /> Terlampir
                                         </span>
                                       </div>
@@ -1139,12 +1115,12 @@ export default function App() {
                 })()}
               </div>
 
-              <div className="pt-4">
+              <div>
                 <button 
                   type="button"
                   onClick={handleSubmitChecklistForm}
                   disabled={isSubmitting}
-                  className="w-full bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-700 hover:to-rose-800 text-white font-black py-4 rounded-2xl text-sm shadow-xl shadow-red-600/30 transition-transform active:scale-98 flex items-center justify-center gap-2 disabled:opacity-50"
+                  style={{ width: '100%', background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: '#fff', border: 'none', padding: '16px', borderRadius: '16px', fontWeight: 900, fontSize: '13px', cursor: 'pointer', boxShadow: '0 6px 20px rgba(220,38,38,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: isSubmitting ? 0.5 : 1 }}
                 >
                   <ClipboardCheck size={18} /> {isSubmitting ? 'Menyimpan ke Cloud...' : 'Simpan & Arsipkan ke Firebase Cloud'}
                 </button>
@@ -1156,73 +1132,71 @@ export default function App() {
 
         {/* 5. ARSIP CLOUD */}
         {activeTab === 'history' && (
-          <div className="space-y-6">
-            <div className="bg-slate-800/90 border border-slate-700 p-6 rounded-3xl shadow-xl space-y-4">
-              <h2 className="text-base font-black text-white flex items-center gap-2">
-                <FolderArchive size={22} className="text-red-500" /> Arsip Laporan Cloud (Multi-Device)
-              </h2>
-              <p className="text-xs text-slate-400">Semua laporan dari seluruh perangkat tersimpan secara real-time di server cloud.</p>
+          <div style={{ backgroundColor: '#1e293b', border: '1px solid #334155', padding: '24px', borderRadius: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FolderArchive size={20} style={{ color: '#dc2626' }} /> Arsip Laporan Cloud (Multi-Device)
+            </h2>
+            <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>Semua laporan dari seluruh perangkat tersimpan secara real-time di server cloud.</p>
 
-              {historyReports.length === 0 ? (
-                <div className="text-center py-12 text-slate-500 text-xs italic bg-slate-900/50 rounded-2xl border border-dashed border-slate-800">
-                  Belum ada laporan tersimpan di database cloud.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {historyReports.map((rep, idx) => (
-                    <div key={rep.firestore_id || idx} className="bg-slate-900/80 border border-slate-700/80 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2.5 mb-1.5">
-                          <span className="text-xs font-black text-red-300 bg-red-500/20 px-3 py-1 rounded-xl border border-red-500/30">
-                            {rep.formTitle}
-                          </span>
-                          <span className="text-[11px] text-slate-400">{rep.timestamp_readable}</span>
-                        </div>
-                        <p className="text-xs text-slate-300 m-0">
-                          Petugas: <strong className="text-white">{rep.headers?.diisiOleh}</strong> | Pemeriksa: <strong className="text-white">{rep.headers?.diperiksaOleh}</strong>
-                        </p>
+            {historyReports.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 0', color: '#64748b', fontSize: '12px', fontStyle: 'italic', backgroundColor: '#0f172a', borderRadius: '14px', border: '1px dashed #334155' }}>
+                Belum ada laporan tersimpan di database cloud.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {historyReports.map((rep, idx) => (
+                  <div key={rep.firestore_id || idx} style={{ backgroundColor: '#0f172a', border: '1px solid #334155', padding: '16px 20px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 900, color: '#fca5a5', backgroundColor: 'rgba(220, 38, 38, 0.2)', padding: '3px 10px', borderRadius: '10px', border: '1px solid rgba(220, 38, 38, 0.3)' }}>
+                          {rep.formTitle}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>{rep.timestamp_readable}</span>
                       </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <button 
-                          onClick={() => setSelectedReport(rep)}
-                          className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow transition-transform active:scale-95"
-                        >
-                          Lihat Detail
-                        </button>
-
-                        {isAdminLoggedIn && (
-                          <button 
-                            onClick={() => handleDeleteReportFromCloud(rep.firestore_id)}
-                            className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold p-2.5 rounded-xl border border-rose-500/30 transition-transform active:scale-95"
-                            title="Hapus dari database cloud"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
+                      <p style={{ fontSize: '12px', color: '#cbd5e1', margin: 0 }}>
+                        Petugas: <strong style={{ color: '#ffffff' }}>{rep.headers?.diisiOleh}</strong> | Pemeriksa: <strong style={{ color: '#ffffff' }}>{rep.headers?.diperiksaOleh}</strong>
+                      </p>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <button 
+                        onClick={() => setSelectedReport(rep)}
+                        style={{ backgroundColor: '#dc2626', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                      >
+                        Lihat Detail
+                      </button>
+
+                      {isAdminLoggedIn && (
+                        <button 
+                          onClick={() => handleDeleteReportFromCloud(rep.firestore_id)}
+                          style={{ backgroundColor: 'rgba(248, 113, 113, 0.2)', color: '#fca5a5', border: '1px solid rgba(248, 113, 113, 0.3)', padding: '8px 10px', borderRadius: '10px', cursor: 'pointer' }}
+                          title="Hapus dari database cloud"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
         {/* 6. PANEL ADMIN */}
         {activeTab === 'admin_panel' && isAdminLoggedIn && (
-          <div className="space-y-6">
-            <div className="bg-gradient-to-r from-slate-900 via-red-950 to-slate-900 p-6 rounded-3xl border border-red-900/40 shadow-xl flex items-center justify-between">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ background: 'linear-gradient(135deg, #0f172a, #7f1d1d, #0f172a)', padding: '24px', borderRadius: '20px', border: '1px solid rgba(220, 38, 38, 0.4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <span className="bg-red-500/20 text-red-300 border border-red-500/30 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full inline-block mb-2">
+                <span style={{ backgroundColor: 'rgba(220, 38, 38, 0.2)', color: '#f87171', border: '1px solid rgba(220, 38, 38, 0.3)', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', padding: '4px 12px', borderRadius: '20px', display: 'inline-block', marginBottom: '8px' }}>
                   Admin Control Panel
                 </span>
-                <h2 className="text-lg sm:text-xl font-black text-white m-0">Pengaturan & Editor Pertanyaan SOP</h2>
+                <h2 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: 0 }}>Pengaturan & Editor Pertanyaan SOP</h2>
               </div>
-              <ShieldCheck size={36} className="text-red-400" />
+              <ShieldCheck size={36} style={{ color: '#f87171' }} />
             </div>
 
-            <div className="flex overflow-x-auto gap-2 pb-2">
+            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
               {[
                 { key: 'opening_lobi', label: 'FOH Opening' },
                 { key: 'closing_lobi', label: 'FOH Closing' },
@@ -1232,26 +1206,26 @@ export default function App() {
                 <button
                   key={tab.key}
                   onClick={() => { setSelectedEditorTab(tab.key); setEditingQuestionId(null); setNewQText(''); }}
-                  className={`px-4 py-2.5 rounded-2xl text-xs font-bold whitespace-nowrap transition-all ${selectedEditorTab === tab.key ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/30' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'}`}
+                  style={{ backgroundColor: selectedEditorTab === tab.key ? '#fbbf24' : '#1e293b', color: selectedEditorTab === tab.key ? '#0f172a' : '#cbd5e1', border: '1px solid #334155', padding: '9px 16px', borderRadius: '14px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap' }}
                 >
                   {tab.label}
                 </button>
               ))}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="bg-slate-800/90 border border-slate-700 p-6 rounded-3xl shadow-xl space-y-4 lg:col-span-1">
-                <h3 className="text-sm font-black text-white flex items-center gap-2">
-                  <Edit3 size={18} className="text-amber-400" /> {editingQuestionId ? 'Edit Pertanyaan SOP' : 'Tambah Pertanyaan Baru'}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+              <div style={{ backgroundColor: '#1e293b', border: '1px solid #334155', padding: '24px', borderRadius: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <h3 style={{ fontSize: '14px', fontWeight: 900, color: '#ffffff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Edit3 size={18} style={{ color: '#fbbf24' }} /> {editingQuestionId ? 'Edit Pertanyaan SOP' : 'Tambah Pertanyaan Baru'}
                 </h3>
                 
-                <form onSubmit={handleSaveQuestion} className="space-y-4">
+                <form onSubmit={handleSaveQuestion} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-1">Pilih Kategori / Area:</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#cbd5e1', marginBottom: '6px' }}>Pilih Kategori / Area:</label>
                     <select
                       value={newQCategory}
                       onChange={(e) => setNewQCategory(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      style={{ width: '100%', backgroundColor: '#0f172a', border: '1px solid #475569', color: '#fff', borderRadius: '10px', padding: '10px', fontSize: '12px', outline: 'none' }}
                     >
                       {(formCategories[selectedEditorTab] || []).map(cat => (
                         <option key={cat} value={cat}>{cat}</option>
@@ -1260,32 +1234,32 @@ export default function App() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-1">Teks Pertanyaan / Checklist:</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#cbd5e1', marginBottom: '6px' }}>Teks Pertanyaan / Checklist:</label>
                     <textarea 
                       rows={3}
                       placeholder="Tuliskan poin SOP..."
                       value={newQText}
                       onChange={(e) => setNewQText(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      style={{ width: '100%', backgroundColor: '#0f172a', border: '1px solid #475569', color: '#fff', borderRadius: '10px', padding: '10px', fontSize: '12px', outline: 'none' }}
                       required
                     />
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <input 
                       type="checkbox"
                       id="req_photo_chk"
                       checked={newQRequirePhoto}
                       onChange={(e) => setNewQRequirePhoto(e.target.checked)}
-                      className="w-4 h-4 accent-amber-500 rounded"
+                      style={{ width: '16px', height: '16px', accentColor: '#fbbf24' }}
                     />
-                    <label htmlFor="req_photo_chk" className="text-xs font-bold text-slate-300 cursor-pointer">Wajib Lampirkan Foto</label>
+                    <label htmlFor="req_photo_chk" style={{ fontSize: '12px', fontWeight: 'bold', color: '#cbd5e1', cursor: 'pointer' }}>Wajib Lampirkan Foto</label>
                   </div>
 
-                  <div className="flex gap-2 pt-2">
+                  <div style={{ display: 'flex', gap: '10px', paddingTop: '6px' }}>
                     <button 
                       type="submit"
-                      className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-3 rounded-xl text-xs shadow transition-transform active:scale-98"
+                      style={{ flex: 1, backgroundColor: '#fbbf24', color: '#0f172a', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 900, fontSize: '12px', cursor: 'pointer' }}
                     >
                       {editingQuestionId ? 'Simpan Perubahan' : 'Tambah ke SOP'}
                     </button>
@@ -1293,7 +1267,7 @@ export default function App() {
                       <button 
                         type="button"
                         onClick={() => { setEditingQuestionId(null); setNewQText(''); }}
-                        className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-3 rounded-xl text-xs font-bold"
+                        style={{ backgroundColor: '#475569', color: '#fff', border: 'none', padding: '12px 16px', borderRadius: '10px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' }}
                       >
                         Batal
                       </button>
@@ -1301,46 +1275,46 @@ export default function App() {
                   </div>
                 </form>
 
-                <div className="border-t border-slate-700 pt-4 mt-4 space-y-3">
-                  <h4 className="text-xs font-black text-slate-300 flex items-center gap-1.5">
-                    <Layers size={14} className="text-amber-400" /> Tambah Area / Kategori Baru
+                <div style={{ borderTop: '1px solid #334155', paddingTop: '16px', marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <h4 style={{ fontSize: '12px', fontWeight: 900, color: '#cbd5e1', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Layers size={14} style={{ color: '#fbbf24' }} /> Tambah Area / Kategori Baru
                   </h4>
-                  <form onSubmit={handleAddCategory} className="flex gap-2">
+                  <form onSubmit={handleAddCategory} style={{ display: 'flex', gap: '8px' }}>
                     <input 
                       type="text"
                       placeholder="Nama Area (e.g. GUDANG)..."
                       value={newCategoryInput}
                       onChange={(e) => setNewCategoryInput(e.target.value)}
-                      className="flex-1 bg-slate-900 border border-slate-700 text-white rounded-xl px-3 py-2 text-xs"
+                      style={{ flex: 1, backgroundColor: '#0f172a', border: '1px solid #475569', color: '#fff', borderRadius: '10px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
                     />
-                    <button type="submit" className="bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold px-3.5 py-2 rounded-xl">
+                    <button type="submit" style={{ backgroundColor: '#334155', color: '#fff', border: '1px solid #475569', fontSize: '12px', fontWeight: 'bold', padding: '8px 14px', borderRadius: '10px', cursor: 'pointer' }}>
                       Tambah
                     </button>
                   </form>
                 </div>
               </div>
 
-              <div className="bg-slate-800/90 border border-slate-700 p-6 rounded-3xl shadow-xl space-y-4 lg:col-span-2">
-                <h3 className="text-sm font-black text-white">Daftar Pertanyaan SOP ({selectedEditorTab})</h3>
+              <div style={{ backgroundColor: '#1e293b', border: '1px solid #334155', padding: '24px', borderRadius: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <h3 style={{ fontSize: '14px', fontWeight: 900, color: '#ffffff', margin: 0 }}>Daftar Pertanyaan SOP ({selectedEditorTab})</h3>
                 
-                <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '480px', overflowY: 'auto', paddingRight: '4px' }}>
                   {(questions[selectedEditorTab] || []).map((q, qIdx) => (
-                    <div key={q.id} className="bg-slate-900/80 border border-slate-700/80 p-4 rounded-2xl flex items-start justify-between gap-3">
+                    <div key={q.id} style={{ backgroundColor: '#0f172a', border: '1px solid #334155', padding: '14px 16px', borderRadius: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
                       <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] font-black uppercase bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded-md border border-amber-500/30">{q.category}</span>
-                          {q.requirePhoto && <span className="text-[10px] bg-red-500/20 text-red-300 px-2 py-0.5 rounded-md border border-red-500/30">Wajib Foto</span>}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <span style={{ fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', backgroundColor: 'rgba(251, 191, 36, 0.2)', color: '#fbbf24', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(251, 191, 36, 0.3)' }}>{q.category}</span>
+                          {q.requirePhoto && <span style={{ fontSize: '9px', backgroundColor: 'rgba(220, 38, 38, 0.2)', color: '#f87171', padding: '2px 6px', borderRadius: '6px', border: '1px solid rgba(220, 38, 38, 0.3)' }}>Wajib Foto</span>}
                         </div>
-                        <p className="text-xs font-medium text-slate-200 m-0">
-                          <strong className="text-slate-500 mr-1.5">{qIdx + 1}.</strong> {q.text}
+                        <p style={{ fontSize: '12px', fontWeight: 500, color: '#e2e8f0', margin: 0, lineHeight: '1.4' }}>
+                          <strong style={{ color: '#64748b', marginRight: '6px' }}>{qIdx + 1}.</strong> {q.text}
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button onClick={() => handleMoveQuestion(qIdx, 'up')} className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700" title="Geser Atas"><ArrowUp size={14} /></button>
-                        <button onClick={() => handleMoveQuestion(qIdx, 'down')} className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700" title="Geser Bawah"><ArrowDown size={14} /></button>
-                        <button onClick={() => { setEditingQuestionId(q.id); setNewQText(q.text); setNewQCategory(q.category); setNewQRequirePhoto(q.requirePhoto); }} className="p-1.5 bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 rounded-lg border border-sky-500/30" title="Edit"><Edit3 size={14} /></button>
-                        <button onClick={() => handleDeleteQuestion(q.id)} className="p-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 rounded-lg border border-rose-500/30" title="Hapus"><Trash2 size={14} /></button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                        <button onClick={() => handleMoveQuestion(qIdx, 'up')} style={{ padding: '6px', backgroundColor: '#1e293b', border: '1px solid #334155', color: '#cbd5e1', borderRadius: '8px', cursor: 'pointer' }} title="Geser Atas"><ArrowUp size={13} /></button>
+                        <button onClick={() => handleMoveQuestion(qIdx, 'down')} style={{ padding: '6px', backgroundColor: '#1e293b', border: '1px solid #334155', color: '#cbd5e1', borderRadius: '8px', cursor: 'pointer' }} title="Geser Bawah"><ArrowDown size={13} /></button>
+                        <button onClick={() => { setEditingQuestionId(q.id); setNewQText(q.text); setNewQCategory(q.category); setNewQRequirePhoto(q.requirePhoto); }} style={{ padding: '6px', backgroundColor: 'rgba(56, 189, 248, 0.2)', border: '1px solid rgba(56, 189, 248, 0.3)', color: '#38bdf8', borderRadius: '8px', cursor: 'pointer' }} title="Edit"><Edit3 size={13} /></button>
+                        <button onClick={() => handleDeleteQuestion(q.id)} style={{ padding: '6px', backgroundColor: 'rgba(248, 113, 113, 0.2)', border: '1px solid rgba(248, 113, 113, 0.3)', color: '#f87171', borderRadius: '8px', cursor: 'pointer' }} title="Hapus"><Trash2 size={13} /></button>
                       </div>
                     </div>
                   ))}
@@ -1354,60 +1328,57 @@ export default function App() {
 
       {/* MODAL DETAIL LAPORAN */}
       {selectedReport && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, backgroundColor: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '24px', maxWidth: '650px', width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #334155', paddingBottom: '16px' }}>
               <div>
-                <span className="text-[10px] font-black uppercase bg-red-500/20 text-red-300 px-3 py-1 rounded-xl border border-red-500/30">{selectedReport.formTitle}</span>
-                <h3 className="text-base font-black text-white mt-1.5">Detail Laporan SOP</h3>
+                <span style={{ fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', backgroundColor: 'rgba(220, 38, 38, 0.2)', color: '#f87171', padding: '4px 12px', borderRadius: '20px', border: '1px solid rgba(220, 38, 38, 0.3)' }}>{selectedReport.formTitle}</span>
+                <h3 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '8px 0 0 0' }}>Detail Laporan SOP</h3>
               </div>
-              <button onClick={() => setSelectedReport(null)} className="p-2 rounded-full hover:bg-slate-800 text-slate-400">
+              <button onClick={() => setSelectedReport(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '6px' }}>
                 <X size={20} />
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-xs bg-slate-800/80 p-4 rounded-2xl border border-slate-700">
-              <div><strong className="text-slate-400 block mb-0.5">Tanggal:</strong> {selectedReport.headers?.tanggal}</div>
-              <div><strong className="text-slate-400 block mb-0.5">Waktu Input:</strong> {selectedReport.timestamp_readable}</div>
-              <div><strong className="text-slate-400 block mb-0.5">Petugas:</strong> {selectedReport.headers?.diisiOleh}</div>
-              <div><strong className="text-slate-400 block mb-0.5">Pemeriksa:</strong> {selectedReport.headers?.diperiksaOleh}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', fontSize: '12px', backgroundColor: '#0f172a', padding: '16px', borderRadius: '16px', border: '1px solid #334155' }}>
+              <div><strong style={{ color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Tanggal:</strong> {selectedReport.headers?.tanggal}</div>
+              <div><strong style={{ color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Waktu Input:</strong> {selectedReport.timestamp_readable}</div>
+              <div><strong style={{ color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Petugas:</strong> {selectedReport.headers?.diisiOleh}</div>
+              <div><strong style={{ color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Pemeriksa:</strong> {selectedReport.headers?.diperiksaOleh}</div>
             </div>
 
             {selectedReport.attendance?.isSubmitted && (
-              <div className="text-xs bg-amber-950/40 p-4 rounded-2xl border border-amber-500/30 space-y-2">
-                <strong className="text-amber-300 block">Kehadiran Karyawan (FOH):</strong>
-                <div className="grid grid-cols-2 gap-2 text-slate-300">
-                  <div>• Hadir: <strong>{selectedReport.attendance.hadirCount} Orang</strong></div>
-                  <div>• Sakit: <strong>{selectedReport.attendance.sakitList?.filter(Boolean).length || 0} Orang</strong></div>
-                  <div>• Izin: <strong>{selectedReport.attendance.izinList?.filter(Boolean).length || 0} Orang</strong></div>
-                  <div>• Tanpa Keterangan: <strong>{selectedReport.attendance.alphaList?.filter(Boolean).length || 0} Orang</strong></div>
+              <div style={{ fontSize: '12px', backgroundColor: 'rgba(120, 53, 15, 0.3)', padding: '16px', borderRadius: '16px', border: '1px solid rgba(245, 158, 11, 0.3)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <strong style={{ color: '#fbbf24', display: 'block' }}>Kehadiran Karyawan (FOH):</strong>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', color: '#cbd5e1' }}>
+                  <div>• Hadir: <strong style={{ color: '#fff' }}>{selectedReport.attendance.hadirCount} Orang</strong></div>
+                  <div>• Sakit: <strong style={{ color: '#fff' }}>{selectedReport.attendance.sakitList?.filter(Boolean).length || 0} Orang</strong></div>
+                  <div>• Izin: <strong style={{ color: '#fff' }}>{selectedReport.attendance.izinList?.filter(Boolean).length || 0} Orang</strong></div>
+                  <div>• Alpha: <strong style={{ color: '#fff' }}>{selectedReport.attendance.alphaList?.filter(Boolean).length || 0} Orang</strong></div>
                 </div>
               </div>
             )}
 
             <div>
-              <h4 className="text-xs font-black uppercase text-slate-400 mb-2">Item Pemeriksaan:</h4>
-              <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+              <h4 style={{ fontSize: '12px', fontWeight: 900, textTransform: 'uppercase', color: '#94a3b8', margin: '0 0 10px 0' }}>Item Pemeriksaan:</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '260px', overflowY: 'auto', paddingRight: '4px' }}>
                 {Object.entries(selectedReport.checklistData || {}).map(([qId, ans], idx) => {
                   const displayQuestionText = ans.questionText || `Item #${idx + 1}`;
                   const displayCategory = ans.category || 'General';
 
                   return (
-                    <div key={idx} className="bg-slate-800/70 p-3.5 rounded-2xl border border-slate-700 text-xs flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">{displayCategory}</span>
-                        </div>
-                        <span className="font-bold text-white block mb-1">{idx + 1}. {displayQuestionText}</span>
-                        <span className={`inline-block font-bold px-2.5 py-0.5 rounded-lg text-[10px] mb-1 ${ans.status === 'OK' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'}`}>
+                    <div key={idx} style={{ backgroundColor: '#0f172a', padding: '14px', borderRadius: '14px', border: '1px solid #334155', fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#fbbf24', backgroundColor: 'rgba(251, 191, 36, 0.1)', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(251, 191, 36, 0.2)', width: 'fit-content' }}>{displayCategory}</span>
+                        <span style={{ fontWeight: 'bold', color: '#ffffff', lineHeight: '1.4' }}>{idx + 1}. {displayQuestionText}</span>
+                        <span style={{ display: 'inline-block', fontWeight: 'bold', padding: '2px 8px', borderRadius: '6px', fontSize: '10px', width: 'fit-content', backgroundColor: ans.status === 'OK' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(248, 113, 113, 0.2)', color: ans.status === 'OK' ? '#34d399' : '#f87171', border: ans.status === 'OK' ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(248, 113, 113, 0.3)' }}>
                           Status: {ans.status}
                         </span>
-                        {ans.note && <p className="text-slate-300 m-0 mt-1">Catatan: {ans.note}</p>}
+                        {ans.note && <p style={{ color: '#cbd5e1', margin: '4px 0 0 0' }}>Catatan: {ans.note}</p>}
                       </div>
                       {ans.photo && (
-                        <div onClick={() => setPreviewImage(ans.photo)} className="cursor-pointer group relative">
-                          <img src={ans.photo} alt="Bukti" className="w-14 h-14 object-cover rounded-xl border border-slate-700 shadow-sm group-hover:opacity-85 transition-opacity" />
-                          <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 rounded-xl text-white text-[10px] font-bold transition-opacity">Zoom</span>
+                        <div onClick={() => setPreviewImage(ans.photo)} style={{ cursor: 'pointer', flexShrink: 0 }}>
+                          <img src={ans.photo} alt="Bukti" style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '10px', border: '1px solid #334155' }} />
                         </div>
                       )}
                     </div>
@@ -1416,11 +1387,11 @@ export default function App() {
               </div>
             </div>
 
-            <div className="pt-2">
+            <div>
               <button 
                 type="button"
                 onClick={() => setSelectedReport(null)}
-                className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3.5 rounded-2xl text-xs border border-slate-700"
+                style={{ width: '100%', backgroundColor: '#334155', color: '#fff', border: '1px solid #475569', padding: '12px', borderRadius: '14px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' }}
               >
                 Tutup Detail
               </button>
@@ -1431,48 +1402,48 @@ export default function App() {
 
       {/* MODAL PREVIEW FOTO FULLSCREEN */}
       {previewImage && (
-        <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setPreviewImage(null)}>
-          <div className="relative max-w-3xl w-full flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1100, backgroundColor: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={() => setPreviewImage(null)}>
+          <div style={{ position: 'relative', maxWidth: '700px', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
             <button 
               onClick={() => setPreviewImage(null)}
-              className="absolute -top-12 right-0 bg-slate-800 hover:bg-slate-700 text-white p-2.5 rounded-full border border-slate-700"
+              style={{ position: 'absolute', top: '-45px', right: 0, backgroundColor: '#334155', color: '#fff', border: '1px solid #475569', padding: '8px 12px', borderRadius: '50%', cursor: 'pointer' }}
             >
-              <X size={20} />
+              <X size={18} />
             </button>
-            <img src={previewImage} alt="Preview Bukti Full" className="max-w-full max-h-[80vh] object-contain rounded-2xl border border-slate-700 shadow-2xl" />
-            <p className="text-xs text-slate-400 mt-3">Klik di luar gambar atau tombol tutup untuk keluar</p>
+            <img src={previewImage} alt="Preview Bukti Full" style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', borderRadius: '16px', border: '1px solid #334155', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.8)' }} />
+            <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '12px' }}>Klik di luar gambar atau tombol tutup untuk keluar</p>
           </div>
         </div>
       )}
 
       {/* MODAL PIN LOGIN ADMIN */}
       {showPinModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-4">
-            <h3 className="text-base font-black text-white flex items-center gap-2">
-              <Lock size={18} className="text-red-500" /> Masukkan PIN Admin
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, backgroundColor: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '24px', maxWidth: '340px', width: '100%', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.7)' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Lock size={18} style={{ color: '#dc2626' }} /> Masukkan PIN Admin
             </h3>
-            <p className="text-xs text-slate-400">Masukkan PIN Admin untuk mengakses Panel Editor SOP & Penghapusan Arsip.</p>
+            <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>Masukkan PIN Admin untuk mengakses Panel Editor SOP & Penghapusan Arsip.</p>
             <input 
               type="password"
               placeholder="PIN (Default: 1234)"
               value={adminPinInput}
               onChange={(e) => setAdminPinInput(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 text-white rounded-2xl px-4 py-3 text-sm font-bold text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-red-600"
+              style={{ width: '100%', backgroundColor: '#0f172a', border: '1px solid #475569', color: '#fff', borderRadius: '14px', padding: '12px', fontSize: '14px', fontWeight: 'bold', textAlign: 'center', letterSpacing: '4px', outline: 'none' }}
               autoFocus
             />
-            <div className="flex gap-2.5 pt-2">
+            <div style={{ display: 'flex', gap: '10px', paddingTop: '4px' }}>
               <button 
                 type="button"
                 onClick={() => setShowPinModal(false)}
-                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-2xl text-xs border border-slate-700"
+                style={{ flex: 1, backgroundColor: '#334155', color: '#cbd5e1', border: '1px solid #475569', padding: '12px', borderRadius: '14px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' }}
               >
                 Batal
               </button>
               <button 
                 type="button"
                 onClick={handleVerifyAdminPin}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-2xl text-xs shadow-lg shadow-red-600/30"
+                style={{ flex: 1, backgroundColor: '#dc2626', color: '#fff', border: 'none', padding: '12px', borderRadius: '14px', fontWeight: 900, fontSize: '12px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(220,38,38,0.3)' }}
               >
                 Masuk
               </button>
