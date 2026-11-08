@@ -1094,14 +1094,25 @@ export default function App() {
                                 )}
 
                                 {q.requirePhoto && (
-                                  <div className="pt-1 flex items-center gap-3">
+                                  <div className="pt-1 flex flex-wrap items-center gap-3">
                                     <label className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-2 border border-slate-700 shadow-sm active:scale-95 transition-transform">
                                       <Camera size={16} className="text-red-400" />
-                                      {ans.photo ? 'Ganti Foto' : 'Ambil Foto Bukti'}
+                                      {ans.photo ? 'Ganti Foto (Kamera)' : 'Ambil dari Kamera'}
                                       <input 
                                         type="file" 
                                         accept="image/*" 
                                         capture="environment"
+                                        onChange={(e) => handlePhotoCapture(q.id, e)}
+                                        className="hidden"
+                                      />
+                                    </label>
+
+                                    <label className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-2 border border-slate-700 shadow-sm active:scale-95 transition-transform">
+                                      <FolderArchive size={16} className="text-amber-400" />
+                                      Pilih dari Galeri
+                                      <input 
+                                        type="file" 
+                                        accept="image/*" 
                                         onChange={(e) => handlePhotoCapture(q.id, e)}
                                         className="hidden"
                                       />
