@@ -201,6 +201,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+  const [historyTab, setHistoryTab] = useState('foh'); // Tab arsip: 'foh' atau 'boh'
 
   const showToast = (msg) => {
     setToastMessage(String(msg));
@@ -503,6 +504,41 @@ export default function App() {
   const fohCount = historyReports.filter(r => r.formType?.includes('lobi')).length;
   const bohCount = historyReports.filter(r => r.formType?.includes('kitchen')).length;
 
+  const fohHistoryReports = historyReports.filter(r => r.formType?.includes('lobi'));
+  const bohHistoryReports = historyReports.filter(r => r.formType?.includes('kitchen'));
+  const displayedHistoryReports = historyTab === 'foh' ? fohHistoryReports : bohHistoryReports;
+
+  // Analisis Tanggal yang Belum Diinput (3 hari terakhir) - Spesifik Opening/Closing
+  const getMissingDaysSummary = () => {
+    const missing = [];
+    
+    for (let i = 1; i <= 3; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dStr = d.toISOString().split('T')[0];
+      
+      const reportsOnDate = historyReports.filter(r => r.headers?.tanggal === dStr);
+      const hasFohOpen = reportsOnDate.some(r => r.formType === 'opening_lobi');
+      const hasFohClose = reportsOnDate.some(r => r.formType === 'closing_lobi');
+      const hasBohOpen = reportsOnDate.some(r => r.formType === 'opening_kitchen');
+      const hasBohClose = reportsOnDate.some(r => r.formType === 'closing_kitchen');
+
+      if (!hasFohOpen || !hasFohClose || !hasBohOpen || !hasBohClose) {
+        missing.push({
+          dateStr: dStr,
+          formattedDate: d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short' }),
+          missingFohOpen: !hasFohOpen,
+          missingFohClose: !hasFohClose,
+          missingBohOpen: !hasBohOpen,
+          missingBohClose: !hasBohClose
+        });
+      }
+    }
+    return missing;
+  };
+
+  const missingDays = getMissingDaysSummary();
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0f172a', color: '#f8fafc', fontFamily: 'Inter, system-ui, sans-serif', paddingBottom: '60px' }}>
       
@@ -607,6 +643,35 @@ export default function App() {
                 {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
               </span>
             </div>
+
+            {/* DASHBOARD REKAP KETERLAMBATAN (3 HARI TERAKHIR - OPENING/CLOSING) */}
+            {missingDays.length > 0 && (
+              <div style={{ backgroundColor: '#1e293b', border: '1px solid #b91c1c', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px', boxShadow: '0 10px 25px rgba(185, 28, 28, 0.2)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid #334155', paddingBottom: '10px' }}>
+                  <div style={{ backgroundColor: 'rgba(220, 38, 38, 0.2)', padding: '8px', borderRadius: '10px', color: '#f87171' }}>
+                    <AlertTriangle size={20} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '14px', fontWeight: 900, color: '#fca5a5', margin: 0 }}>Rekap Keterlambatan (3 Hari Terakhir)</h3>
+                    <p style={{ fontSize: '11px', color: '#cbd5e1', margin: '2px 0 0 0' }}>Daftar shift checklist yang belum diinput:</p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {missingDays.map((miss, idx) => (
+                    <div key={idx} style={{ backgroundColor: '#0f172a', padding: '12px 14px', borderRadius: '12px', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', fontSize: '12px' }}>
+                      <span style={{ color: '#ffffff', fontWeight: 'bold' }}>{miss.formattedDate}</span>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {miss.missingFohOpen && <span style={{ backgroundColor: 'rgba(220, 38, 38, 0.2)', color: '#fca5a5', padding: '3px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold' }}>FOH Opening</span>}
+                        {miss.missingFohClose && <span style={{ backgroundColor: 'rgba(220, 38, 38, 0.2)', color: '#fca5a5', padding: '3px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold' }}>FOH Closing</span>}
+                        {miss.missingBohOpen && <span style={{ backgroundColor: 'rgba(245, 158, 11, 0.2)', color: '#fcd34d', padding: '3px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold' }}>BOH Opening</span>}
+                        {miss.missingBohClose && <span style={{ backgroundColor: 'rgba(245, 158, 11, 0.2)', color: '#fcd34d', padding: '3px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold' }}>BOH Closing</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div style={{ background: 'linear-gradient(135deg, #7f1d1d, #0f172a, #78350f)', padding: '28px', borderRadius: '20px', border: '1px solid rgba(220, 38, 38, 0.4)', boxShadow: '0 10px 30px rgba(0,0,0,0.3)', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'relative', zIndex: 10, maxWidth: '650px' }}>
@@ -826,8 +891,21 @@ export default function App() {
                 <Calendar size={16} style={{ color: '#34d399' }} /> Ringkasan Laporan Hari Ini ({todayDateStr})
               </h3>
               {todayReports.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '30px 0', color: '#64748b', fontSize: '12px', fontStyle: 'italic', backgroundColor: '#0f172a', borderRadius: '14px', border: '1px dashed #334155' }}>
-                  Belum ada laporan checklist yang diinput hari ini.
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ backgroundColor: 'rgba(220, 38, 38, 0.15)', border: '1px solid rgba(220, 38, 38, 0.4)', padding: '18px 20px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div style={{ backgroundColor: 'rgba(220, 38, 38, 0.2)', padding: '10px', borderRadius: '12px', color: '#f87171' }}>
+                      <AlertTriangle size={24} />
+                    </div>
+                    <div>
+                      <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', fontWeight: 900, color: '#fca5a5' }}>Belum Ada Checklist Hari Ini!</h4>
+                      <p style={{ margin: 0, fontSize: '12px', color: '#cbd5e1', lineHeight: '1.4' }}>
+                        Hari ini belum ada satupun form checklist FOH atau BOH yang diinput ke server cloud. Mohon segera lakukan pemeriksaan SOP operasional.
+                      </p>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '16px 0', color: '#64748b', fontSize: '12px', fontStyle: 'italic', backgroundColor: '#0f172a', borderRadius: '14px', border: '1px dashed #334155' }}>
+                    Status: Menunggu pengisian laporan checklist operasional harian.
+                  </div>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1138,13 +1216,29 @@ export default function App() {
             </h2>
             <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>Semua laporan dari seluruh perangkat tersimpan secara real-time di server cloud.</p>
 
-            {historyReports.length === 0 ? (
+            {/* Sub Tabs FOH / BOH untuk Arsip */}
+            <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #334155', paddingBottom: '12px' }}>
+              <button
+                onClick={() => setHistoryTab('foh')}
+                style={{ backgroundColor: historyTab === 'foh' ? '#dc2626' : '#0f172a', color: historyTab === 'foh' ? '#fff' : '#cbd5e1', border: '1px solid #334155', padding: '8px 16px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Building2 size={14} /> FOH Reports ({fohHistoryReports.length})
+              </button>
+              <button
+                onClick={() => setHistoryTab('boh')}
+                style={{ backgroundColor: historyTab === 'boh' ? '#dc2626' : '#0f172a', color: historyTab === 'boh' ? '#fff' : '#cbd5e1', border: '1px solid #334155', padding: '8px 16px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <UtensilsCrossed size={14} /> BOH Reports ({bohHistoryReports.length})
+              </button>
+            </div>
+
+            {displayedHistoryReports.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 0', color: '#64748b', fontSize: '12px', fontStyle: 'italic', backgroundColor: '#0f172a', borderRadius: '14px', border: '1px dashed #334155' }}>
-                Belum ada laporan tersimpan di database cloud.
+                Belum ada laporan {historyTab === 'foh' ? 'FOH (Lobi & Bar)' : 'BOH (Kitchen)'} tersimpan di database cloud.
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {historyReports.map((rep, idx) => (
+                {displayedHistoryReports.map((rep, idx) => (
                   <div key={rep.firestore_id || idx} style={{ backgroundColor: '#0f172a', border: '1px solid #334155', padding: '16px 20px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
